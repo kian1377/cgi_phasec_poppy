@@ -5,17 +5,13 @@ from scipy.interpolate import interp1d
 import poppy
 from poppy.poppy_core import PlaneType
 
-from . import hlc, spc, polmap, misc
-
 import ray
 from astropy.io import fits
 import astropy.units as u
 import time
 
-from pathlib import Path
-cgi_dir = Path('/groups/douglase/kians-data-files/roman-cgi-phasec-data')
-
-dm_dir = cgi_dir/'dm-acts'
+import cgi_phasec_poppy
+from . import hlc, spc, polmap, misc
 
 class CGI():
 
@@ -39,17 +35,14 @@ class CGI():
             self.wavelength_c = 575e-9*u.m
             self.npix = 310
             self.oversample = 1024/310
-            self.D = self.pupil_diam
         elif self.cgi_mode=='spc-spec':
             self.wavelength_c = 730e-9*u.m
             self.npix = 1000
             self.oversample = 2.048
-            self.D = self.pupil_diam
         elif self.cgi_mode=='spc-wide':
             self.wavelength_c = 825e-9*u.m
             self.npix = 1000
             self.oversample = 2.048
-            self.D = self.pupil_diam
             
         self.as_per_lamD = ((self.wavelength_c/self.pupil_diam)*u.radian).to(u.arcsec)
         
@@ -125,7 +118,7 @@ class CGI():
         self.FPM_plane = poppy.ScalarTransmission('FPM Plane (No Optic)', planetype=PlaneType.intermediate) # placeholder
         
         if self.cgi_mode=='hlc':
-            self.optics_dir = cgi_dir/'hlc'
+            self.optics_dir = cgi_phasec_poppy.data_dir/'hlc'
             
             self.PUPIL = poppy.FITSOpticalElement('Roman Pupil', 
                                                   transmission=str(self.optics_dir/'pupil_n310_new.fits'),
@@ -163,7 +156,6 @@ class CGI():
                     
                 self.fpm_phasor = fpm_r + 1j*fpm_i
                 
-                print(fpm_r.shape)
 #                 self.fpm_mask = (fpm_r != fpm_r[0,0]).astype(int)
                 self.fpm_mask = (fpm_r != fpm_r[fpm_r.shape[0]-1,fpm_r.shape[0]-1]).astype(int)
                 self.fpm_ref_wavelength = fits.getheader(fpm_r_fname)['WAVELENC']
@@ -183,7 +175,7 @@ class CGI():
                 self.fieldstop = poppy.ScalarTransmission(planetype=PlaneType.intermediate, name='Field Stop Plane (No Optic)')
                 
         elif self.cgi_mode=='spc-spec': 
-            self.optics_dir = cgi_dir/'spc-spec'            
+            self.optics_dir = cgi_phasec_poppy.data_dir/'spc-spec'            
             self.PUPIL = poppy.FITSOpticalElement('Roman Pupil', 
                                                   transmission=str(self.optics_dir/'pupil_SPC-20200617_1000.fits'),
                                                   planetype=PlaneType.pupil)
@@ -202,7 +194,7 @@ class CGI():
             self.use_fieldstop = False
             
         elif self.cgi_mode=='spc-wide':
-            self.optics_dir = cgi_dir/'spc-wide'            
+            self.optics_dir = cgi_phasec_poppy.data_dir/'spc-wide'            
             self.PUPIL = poppy.FITSOpticalElement('Roman Pupil', 
                                                   transmission=str(self.optics_dir/'pupil_SPC-20200610_1000.fits'),
                                                   planetype=PlaneType.pupil)
@@ -222,7 +214,7 @@ class CGI():
             self.use_fieldstop = False
         
         if self.polaxis!=0:
-            polfile = cgi_dir/'pol'/'phasec_pol'
+            polfile = cgi_phasec_poppy.data_dir/'pol'/'phasec_pol'
             polmap_amp, polmap_opd = polmap.polmap( str(polfile), 
                                                    self.wavelength, 
                                                    self.npix, int(self.oversample*self.npix), self.polaxis )
@@ -251,14 +243,16 @@ class CGI():
         else:
             self.dm_zernikes = poppy.zernike.arbitrary_basis(self.dm_mask, nterms=15, outside=0)
         
+        self.dm_dir = cgi_phasec_poppy.data_dir/'dm-acts'
+        
         self.DM1 = poppy.ContinuousDeformableMirror(dm_shape=(self.Nact,self.Nact), name='DM1', 
                                                     actuator_spacing=self.act_spacing, 
                                                     inclination_x=0,inclination_y=9.65,
-                                                    influence_func=str(dm_dir/'proper_inf_func.fits'))
+                                                    influence_func=str(self.dm_dir/'proper_inf_func.fits'))
         self.DM2 = poppy.ContinuousDeformableMirror(dm_shape=(self.Nact,self.Nact), name='DM2', 
                                                     actuator_spacing=self.act_spacing, 
                                                     inclination_x=0,inclination_y=9.65,
-                                                    influence_func=str(dm_dir/'proper_inf_func.fits'))
+                                                    influence_func=str(self.dm_dir/'proper_inf_func.fits'))
     
     def reset_dms(self):
         self.set_dm1(self.dm1_ref)
@@ -296,12 +290,12 @@ class CGI():
     
     # utility functions
     def glass_index(self, glass):
-        a = np.loadtxt( str( cgi_dir/'glass'/(glass+'_index.txt') ) )  # lambda_um index pairs
+        a = np.loadtxt( str( cgi_phasec_poppy.data_dir/'glass'/(glass+'_index.txt') ) )  # lambda_um index pairs
         f = interp1d( a[:,0], a[:,1], kind='cubic' )
         return f( self.wavelength.value*1e6 )
     
     def init_opds(self):
-        opddir = cgi_dir/'opd-maps'
+        opddir = cgi_phasec_poppy.data_dir/'opd-maps'
 
         opdunits = 'meters'
 
@@ -403,7 +397,7 @@ class CGI():
         
         
     def init_inwave(self):
-        inwave = poppy.FresnelWavefront(beam_radius=self.D/2, wavelength=self.wavelength,
+        inwave = poppy.FresnelWavefront(beam_radius=self.pupil_diam/2, wavelength=self.wavelength,
                                         npix=self.npix, oversample=self.oversample)
         
         if self.offset[0]>0 or self.offset[1]>0:
