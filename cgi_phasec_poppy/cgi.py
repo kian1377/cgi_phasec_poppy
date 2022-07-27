@@ -419,7 +419,7 @@ class CGI():
             
         return wfs
     
-    def calc_psf(self, quiet=False): # returns just the poppy.FresnelWavefront object of the image plane
+    def calc_psf(self, quiet=True): # returns just the poppy.FresnelWavefront object of the image plane
         start = time.time()
         if not quiet: print('Propagating wavelength {:.3f}.'.format(self.wavelength.to(u.nm)))
             
