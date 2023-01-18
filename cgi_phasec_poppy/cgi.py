@@ -91,13 +91,13 @@ class CGI():
         
         self.use_noise = use_noise
         
-        self.normalize = 'none'
+        self.normalize = 'none' if self.use_noise else 'first'
         self.star_flux = star_flux
         
-#         self.peak_photon_flux = 1e10 * u.photon/u.pixel/u.s
         self.read_std = 0
-        self.detector_gain = 4.2 * u.electron/u.photon
         self.dark_rate = 0 * u.electron/u.pixel/u.s
+        self.detector_gain = 4.2 * u.electron/u.photon
+        
         
     def copy_mode_settings(self, nactors=1):
         settings = []
@@ -173,7 +173,6 @@ class CGI():
             
             if self.use_fieldstop: 
                 radius = 9.7/(310/(self.npix*self.oversample)) * (self.wavelength_c/self.wavelength) * 7.229503001768824e-06*u.m
-                print(radius)
                 self.fieldstop = poppy.CircularAperture(radius=radius, name='HLC Field Stop', gray_pixel=True)
             else: 
                 self.fieldstop = poppy.ScalarTransmission(planetype=PlaneType.intermediate, name='Field Stop Plane (No Optic)')
@@ -400,7 +399,7 @@ class CGI():
                                         npix=self.npix, oversample=self.oversample)
         
         inwave.wavefront *= np.sqrt((self.star_flux * inwave.pixelscale**2).value)
-        misc.myimshow(inwave.amplitude)
+#         misc.myimshow(inwave.amplitude)
         
         if self.offset[0]>0 or self.offset[1]>0:
             inwave.tilt(Xangle=self.offset[0]*self.as_per_lamD, Yangle=self.offset[1]*self.as_per_lamD)
@@ -447,29 +446,21 @@ class CGI():
         if self.use_noise:
             return self.add_noise(wfs[-1].intensity.get())
         else:
-        
             return wfs[-1].intensity.get()
     
     def add_noise(self, image):
         
-#         peak_counts = self.peak_photon_flux * self.texp
-#         peak_electrons = self.detector_gain * peak_counts
-#         image_electrons = image*peak_electrons
-        
         image_electrons = (image*u.photon/u.s)*self.texp * self.detector_gain 
-        print(image_electrons.unit)
         
-        noisy_im = np.random.poisson(image_electrons.value) * u.electron/u.pixel
+        noisy_im = np.random.poisson(image_electrons.value) * u.electron
         
-        dark_current = np.random.poisson( (self.dark_rate * self.texp).value * np.ones_like(image) ) * u.electron/u.pixel
-        read_noise = self.read_std * np.random.randn(image.shape[0], image.shape[1])
+        dark_current = np.random.poisson( (self.dark_rate * self.texp).value * np.ones_like(image) ) * u.electron
         
-#         noisy_im_counts = np.round((noisy_im + dark_current + read_noise) / self.detector_gain)
-#         normalized_noisy_im = noisy_im_counts / peak_counts
+        read_noise = np.random.randn(image.shape[0], image.shape[1]) * self.read_std * u.electron
         
-        noisy_im_counts = np.round((noisy_im + dark_current + read_noise) / self.detector_gain)
+        noisy_im = np.round( (noisy_im + dark_current + read_noise) )
         
-        return noisy_im_counts
+        return noisy_im.value
   
     
 CGIR = ray.remote(CGI)

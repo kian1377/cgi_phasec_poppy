@@ -208,7 +208,7 @@ def run(SPC, return_intermediates=False):
     fosys.add_optic(SPC.detector, distance=d_fold4_image)
 
     # Calculate the PSF of the FresnelOpticalSystem
-    psf_hdu, wfs = fosys.calc_psf(wavelength=SPC.wavelength, inwave=SPC.inwave,
+    psf_hdu, wfs = fosys.calc_psf(wavelength=SPC.wavelength, inwave=SPC.inwave, normalize=SPC.normalize,
                                   return_intermediates=return_intermediates, return_final=True)
 
     return wfs   
