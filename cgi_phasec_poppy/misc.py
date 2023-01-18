@@ -214,12 +214,12 @@ def myimshow3(arr1, arr2, arr3,
             hext = pxscl1 * arr1.shape[1]/2
             extent1 = [-vext,vext,-hext,hext]
             
-        if isinstance(pxscl2, u.Quantity) and use_ylabel1:
-            if pxscl2.unit==(u.meter/u.pix): ax[0].set_ylabel('meters')
-            elif pxscl2.unit==(u.millimeter/u.pix): ax[0].set_ylabel('millimeters')
-            elif pxscl2.unit==(u.arcsec/u.pix): ax[0].set_ylabel('arcsec')
-            elif pxscl2.unit==(u.mas/u.pix): ax[0].set_ylabel('mas')
-        elif not isinstance(pxscl2, u.Quantity) and use_ylabel1:
+        if isinstance(pxscl1, u.Quantity) and use_ylabel1:
+            if pxscl1.unit==(u.meter/u.pix): ax[0].set_ylabel('meters')
+            elif pxscl1.unit==(u.millimeter/u.pix): ax[0].set_ylabel('millimeters')
+            elif pxscl1.unit==(u.arcsec/u.pix): ax[0].set_ylabel('arcsec')
+            elif pxscl1.unit==(u.mas/u.pix): ax[0].set_ylabel('mas')
+        elif not isinstance(pxscl1, u.Quantity) and use_ylabel1:
             ax[0].set_ylabel('lambda/D')
     else:
         extent1=None
@@ -250,16 +250,16 @@ def myimshow3(arr1, arr2, arr3,
             hext = pxscl3.value * arr3.shape[1]/2
             extent3 = [-vext,vext,-hext,hext]
         else:
-            vext = pxscl2 * arr2.shape[0]/2
-            hext = pxscl2 * arr2.shape[1]/2
+            vext = pxscl3 * arr3.shape[0]/2
+            hext = pxscl3 * arr3.shape[1]/2
             extent3 = [-vext,vext,-hext,hext]
             
         if isinstance(pxscl2, u.Quantity) and use_ylabel3:
-            if pxscl2.unit==(u.meter/u.pix): ax[2].set_ylabel('meters')
-            elif pxscl2.unit==(u.millimeter/u.pix): ax[2].set_ylabel('millimeters')
-            elif pxscl2.unit==(u.arcsec/u.pix): ax[2].set_ylabel('arcsec')
-            elif pxscl2.unit==(u.mas/u.pix): ax[2].set_ylabel('mas')
-        elif not isinstance(pxscl2, u.Quantity) and use_ylabel3:
+            if pxscl3.unit==(u.meter/u.pix): ax[2].set_ylabel('meters')
+            elif pxscl3.unit==(u.millimeter/u.pix): ax[2].set_ylabel('millimeters')
+            elif pxscl3.unit==(u.arcsec/u.pix): ax[2].set_ylabel('arcsec')
+            elif pxscl3.unit==(u.mas/u.pix): ax[2].set_ylabel('mas')
+        elif not isinstance(pxscl3, u.Quantity) and use_ylabel3:
             ax[2].set_ylabel('lambda/D')
     else:
         extent3=None

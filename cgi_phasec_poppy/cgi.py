@@ -13,6 +13,7 @@ import time
 import cgi_phasec_poppy
 from . import hlc, spc, polmap, misc
 
+
 class CGI():
 
     def __init__(self, 
@@ -26,7 +27,10 @@ class CGI():
                  use_opds=False, 
                  dm1_ref=np.zeros((48,48)),
                  dm2_ref=np.zeros((48,48)),
-                 polaxis=0):
+                 polaxis=0,
+                 use_noise=False,
+                 texp=60*u.s,
+                 star_flux=1e5*u.photon/u.m**2/u.s):
         
         self.cgi_mode = cgi_mode
         
@@ -38,11 +42,11 @@ class CGI():
         elif self.cgi_mode=='spc-spec':
             self.wavelength_c = 730e-9*u.m
             self.npix = 1000
-            self.oversample = 2.048
+            self.oversample = 2048/1000
         elif self.cgi_mode=='spc-wide':
             self.wavelength_c = 825e-9*u.m
             self.npix = 1000
-            self.oversample = 2.048
+            self.oversample = 2048/1000
             
         self.as_per_lamD = ((self.wavelength_c/self.pupil_diam)*u.radian).to(u.arcsec)
         
@@ -67,14 +71,6 @@ class CGI():
             self.psf_pixelscale_lamD = 1/2 * 0.5e-6/self.wavelength_c.value * self.psf_pixelscale.to(u.m/u.pix).value/13e-6
         self.interp_order = interp_order # interpolation order for resampling wavefront at detector
         
-        # Statistics for noise (noise functionality not yet implemented)
-        self.texp = 1*u.s
-        self.peak_photon_flux = 1e8*u.photon/u.s
-        self.detector_gain = 1*u.electron/u.photon
-        self.read_noise_std = 1.7*u.electron/u.photon
-        self.well_depth = 3e4*u.electron
-        self.dark_rate = 0.015*u.electron/u.pix/u.s  # [e-/pixel/second]
-        
         self.init_mode_optics()
         self.init_dms()
         
@@ -85,16 +81,23 @@ class CGI():
         
         if self.use_opds: 
             self.init_opds()
-            self.optics = ['pupil', 'polmap', 'primary', 'secondary', 'poma_fold', 'm3', 'm4', 'm5', 'tt_fold', 'fsm', 'oap1', 
-                           'focm', 'oap2', 'dm1', 'dm2', 'oap3', 'fold3', 'oap4', 'pupilmask', 'oap5', 'fpm', 'oap6',
-                           'lyotstop', 'oap7', 'fieldstop', 'oap8', 'filter', 
-                           'imaging_lens_lens1', 'imaging_lens_lens2', 'fold4', 'image']
-            
-        else:
-            self.optics = ['pupil', 'polmap', 'primary', 'secondary', 'poma_fold', 'm3', 'm4', 'm5', 'tt_fold', 'fsm', 'oap1', 
-                           'focm', 'oap2', 'dm1', 'dm2', 'oap3', 'fold3', 'oap4', 'pupilmask', 'oap5', 'fpm', 'oap6',
-                           'lyotstop', 'oap7', 'fieldstop', 'oap8', 'filter', 
-                           'imaging_lens_lens1', 'imaging_lens_lens2', 'fold4', 'image']
+        
+        self.optics = ['pupil', 'polmap', 'primary', 'secondary', 'poma_fold', 'm3', 'm4', 'm5', 'tt_fold', 'fsm', 'oap1', 
+                       'focm', 'oap2', 'dm1', 'dm2', 'oap3', 'fold3', 'oap4', 'pupilmask', 'oap5', 'fpm', 'oap6',
+                       'lyotstop', 'oap7', 'fieldstop', 'oap8', 'filter', 
+                       'imaging_lens_lens1', 'imaging_lens_lens2', 'fold4', 'image']
+        
+        self.texp = texp
+        
+        self.use_noise = use_noise
+        
+        self.normalize = 'none'
+        self.star_flux = star_flux
+        
+#         self.peak_photon_flux = 1e10 * u.photon/u.pixel/u.s
+        self.read_std = 0
+        self.detector_gain = 4.2 * u.electron/u.photon
+        self.dark_rate = 0 * u.electron/u.pixel/u.s
         
     def copy_mode_settings(self, nactors=1):
         settings = []
@@ -170,6 +173,7 @@ class CGI():
             
             if self.use_fieldstop: 
                 radius = 9.7/(310/(self.npix*self.oversample)) * (self.wavelength_c/self.wavelength) * 7.229503001768824e-06*u.m
+                print(radius)
                 self.fieldstop = poppy.CircularAperture(radius=radius, name='HLC Field Stop', gray_pixel=True)
             else: 
                 self.fieldstop = poppy.ScalarTransmission(planetype=PlaneType.intermediate, name='Field Stop Plane (No Optic)')
@@ -283,11 +287,6 @@ class CGI():
     def show_dms(self):
         misc.myimshow2(self.get_dm1(), self.get_dm2(), 'DM1', 'DM2')
     
-    def check_dm_command_shape(self, dm_command):
-        if dm_command.shape[0]==self.Nact**2 or dm_command.shape[1]==self.Nact**2: # passes if shape does not have 2 values
-            dm_command = dm_command.reshape((self.Nact, self.Nact))
-        return dm_command
-    
     # utility functions
     def glass_index(self, glass):
         a = np.loadtxt( str( cgi_phasec_poppy.data_dir/'glass'/(glass+'_index.txt') ) )  # lambda_um index pairs
@@ -400,6 +399,9 @@ class CGI():
         inwave = poppy.FresnelWavefront(beam_radius=self.pupil_diam/2, wavelength=self.wavelength,
                                         npix=self.npix, oversample=self.oversample)
         
+        inwave.wavefront *= np.sqrt((self.star_flux * inwave.pixelscale**2).value)
+        misc.myimshow(inwave.amplitude)
+        
         if self.offset[0]>0 or self.offset[1]>0:
             inwave.tilt(Xangle=self.offset[0]*self.as_per_lamD, Yangle=self.offset[1]*self.as_per_lamD)
             
@@ -431,7 +433,7 @@ class CGI():
             
         if not quiet: print('PSF calculated in {:.3f}s'.format(time.time()-start))
             
-        return wfs[-1]
+        return wfs[-1].wavefront.get()
     
     def snap(self): # returns just the intensity at the image plane
         start = time.time()
@@ -441,8 +443,34 @@ class CGI():
             wfs = hlc.run(self, return_intermediates=False)
         else:
             wfs = spc.run(self, return_intermediates=False)
-            
-        return wfs[-1].intensity.get()
+        
+        if self.use_noise:
+            return self.add_noise(wfs[-1].intensity.get())
+        else:
+        
+            return wfs[-1].intensity.get()
+    
+    def add_noise(self, image):
+        
+#         peak_counts = self.peak_photon_flux * self.texp
+#         peak_electrons = self.detector_gain * peak_counts
+#         image_electrons = image*peak_electrons
+        
+        image_electrons = (image*u.photon/u.s)*self.texp * self.detector_gain 
+        print(image_electrons.unit)
+        
+        noisy_im = np.random.poisson(image_electrons.value) * u.electron/u.pixel
+        
+        dark_current = np.random.poisson( (self.dark_rate * self.texp).value * np.ones_like(image) ) * u.electron/u.pixel
+        read_noise = self.read_std * np.random.randn(image.shape[0], image.shape[1])
+        
+#         noisy_im_counts = np.round((noisy_im + dark_current + read_noise) / self.detector_gain)
+#         normalized_noisy_im = noisy_im_counts / peak_counts
+        
+        noisy_im_counts = np.round((noisy_im + dark_current + read_noise) / self.detector_gain)
+        
+        return noisy_im_counts
+  
     
 CGIR = ray.remote(CGI)
 
