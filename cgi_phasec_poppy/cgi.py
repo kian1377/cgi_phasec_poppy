@@ -30,7 +30,8 @@ class CGI():
                  polaxis=0,
                  use_noise=False,
                  texp=60*u.s,
-                 star_flux=1e5*u.photon/u.m**2/u.s):
+                 star_flux=1e5*u.photon/u.m**2/u.s,
+                 gain=4.2*u.electron/u.pixel):
         
         self.cgi_mode = cgi_mode
         
@@ -93,29 +94,9 @@ class CGI():
         
         self.normalize = 'none' if self.use_noise else 'first'
         self.star_flux = star_flux
-        
         self.read_std = 0
         self.dark_rate = 0 * u.electron/u.pixel/u.s
-        self.detector_gain = 4.2 * u.electron/u.photon
-        
-        
-    def copy_mode_settings(self, nactors=1):
-        settings = []
-        for i in range(nactors):
-            settings.append({'cgi_mode':self.cgi_mode,
-                             'wavelength':self.wavelength, 
-                             'npsf':self.npsf, 
-                             'psf_pixelscale':self.psf_pixelscale, 
-                             'interp_order':self.interp_order,
-                             'offset':self.offset,  
-                             'use_fpm':self.use_fpm,
-                             'use_fieldstop':self.use_fieldstop,
-                             'use_pupil_defocus':self.use_pupil_defocus,
-                             'use_opds':self.use_opds, 
-                             'dm1_ref':self.get_dm1(),
-                             'dm2_ref':self.get_dm2(),
-                             'polaxis':self.polaxis,})
-        return settings
+        self.detector_gain = gain
            
     def init_mode_optics(self):
         self.FPM_plane = poppy.ScalarTransmission('FPM Plane (No Optic)', planetype=PlaneType.intermediate) # placeholder
@@ -461,53 +442,6 @@ class CGI():
         noisy_im = np.round( (noisy_im + dark_current + read_noise) )
         
         return noisy_im.value
-  
-    
-CGIR = ray.remote(CGI)
-
-# Create list of actors by supplying a list of settings
-# Each settings entry is a dictionary
-def create_actors(ncpus=32, ngpus=1, settings=[{'cgi_mode':'hlc', 
-                                                'wavelength':None, 
-                                                'npsf':64, 
-                                                'psf_pixelscale':13e-6*u.m/u.pix, 
-                                                'psf_pixelscale_lamD':None, 
-                                                'interp_order':3,
-                                                'offset':(0,0), 
-                                                'use_fpm':True,
-                                                'use_fieldstop':True, 
-                                                'use_pupil_defocus':True,
-                                                'use_opds':False, 
-                                                'polaxis':0, 
-                                                'return_intermediates':False}]):
-    
-    actors = []
-    for i in range(len(settings)):
-        if isinstance(ncpus, list) or isinstance(ncpus, np.ndarray):
-            num_cpus = ncpus[i]
-        else: 
-            num_cpus = ncpus
-        if isinstance(ngpus, list) or isinstance(ngpus, np.ndarray):
-            num_gpus = ngpus[i]
-        else: 
-            num_gpus = ngpus
-            
-        actors.append( CGIR.options(num_cpus=num_cpus, num_gpus=num_gpus).remote(**settings[i]) ) 
-    
-    return actors
-    
-# Calculate PSF for a given list of actors
-def calc_psfs(actors, quiet=True):
-    start = time.time()
-    
-    pending_wfs = []
-    for i in range(len(actors)):
-        future_wfs = actors[i].calc_psf.remote(quiet=quiet)
-        pending_wfs.append(future_wfs)
-    wfs = ray.get(pending_wfs)
-    
-    if not quiet: print('All PSFs calculated in {:.3f}s'.format(time.time()-start))
-    return wfs
 
 
 

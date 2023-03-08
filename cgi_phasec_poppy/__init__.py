@@ -1,5 +1,5 @@
 from . import cgi
-from .cgi import CGI, CGIR
+from .cgi import CGI
 
 from . import misc
 
