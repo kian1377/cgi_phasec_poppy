@@ -28,10 +28,11 @@ class CGI():
                  dm1_ref=np.zeros((48,48)),
                  dm2_ref=np.zeros((48,48)),
                  polaxis=0,
-                 use_noise=False,
-                 texp=60*u.s,
-                 star_flux=1e5*u.photon/u.m**2/u.s,
-                 gain=4.2*u.electron/u.pixel):
+#                  use_noise=False,
+#                  texp=60*u.s,
+                 source_flux=None,
+#                  gain=4.2*u.electron/u.pixel,
+                ):
         
         self.cgi_mode = cgi_mode
         
@@ -88,15 +89,8 @@ class CGI():
                        'lyotstop', 'oap7', 'fieldstop', 'oap8', 'filter', 
                        'imaging_lens_lens1', 'imaging_lens_lens2', 'fold4', 'image']
         
-        self.texp = texp
-        
-        self.use_noise = use_noise
-        
-        self.normalize = 'none' if self.use_noise else 'first'
-        self.star_flux = star_flux
-        self.read_std = 0
-        self.dark_rate = 0 * u.electron/u.pixel/u.s
-        self.detector_gain = gain
+        self.source_flux = source_flux
+        self.normalize = 'first' if source_flux is None else 'none'
            
     def init_mode_optics(self):
         self.FPM_plane = poppy.ScalarTransmission('FPM Plane (No Optic)', planetype=PlaneType.intermediate) # placeholder
@@ -379,8 +373,9 @@ class CGI():
         inwave = poppy.FresnelWavefront(beam_radius=self.pupil_diam/2, wavelength=self.wavelength,
                                         npix=self.npix, oversample=self.oversample)
         
-        inwave.wavefront *= np.sqrt((self.star_flux * inwave.pixelscale**2).value)
-#         misc.myimshow(inwave.amplitude)
+        if self.source_flux is not None:
+            # scale input wavefront amplitude by the photon flux of source
+            inwave.wavefront *= np.sqrt((self.star_flux * inwave.pixelscale**2).value)
         
         if self.offset[0]>0 or self.offset[1]>0:
             inwave.tilt(Xangle=self.offset[0]*self.as_per_lamD, Yangle=self.offset[1]*self.as_per_lamD)
@@ -424,10 +419,7 @@ class CGI():
         else:
             wfs = spc.run(self, return_intermediates=False)
         
-        if self.use_noise:
-            return self.add_noise(wfs[-1].intensity.get())
-        else:
-            return wfs[-1].intensity.get()
+        return wfs[-1].intensity.get()
     
     def add_noise(self, image):
         
