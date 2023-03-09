@@ -19,8 +19,8 @@ class CGI():
     def __init__(self, 
                  cgi_mode='hlc', 
                  wavelength=None, 
+                 source_offset=(0,0), 
                  npsf=64, psf_pixelscale=13e-6*u.m/u.pix, psf_pixelscale_lamD=None, interp_order=3,
-                 offset=(0,0), 
                  use_fpm=True, 
                  use_fieldstop=True, 
                  use_pupil_defocus=True, 
@@ -28,10 +28,7 @@ class CGI():
                  dm1_ref=np.zeros((48,48)),
                  dm2_ref=np.zeros((48,48)),
                  polaxis=0,
-#                  use_noise=False,
-#                  texp=60*u.s,
                  source_flux=None,
-#                  gain=4.2*u.electron/u.pixel,
                 ):
         
         self.cgi_mode = cgi_mode
@@ -57,7 +54,7 @@ class CGI():
         else: 
             self.wavelength = wavelength
         
-        self.offset = offset
+        self.source_offset = source_offset
         self.use_fpm = use_fpm
         self.use_pupil_defocus = use_pupil_defocus
         self.use_fieldstop = use_fieldstop
@@ -261,6 +258,12 @@ class CGI():
     def show_dms(self):
         misc.myimshow2(self.get_dm1(), self.get_dm2(), 'DM1', 'DM2')
     
+    def set_source_offset(self, source_offset):
+        self.source_offset = source_offset
+        
+    def set_wavelength(self, wavelength):
+        self.wavelength = wavelength
+    
     # utility functions
     def glass_index(self, glass):
         a = np.loadtxt( str( cgi_phasec_poppy.data_dir/'glass'/(glass+'_index.txt') ) )  # lambda_um index pairs
@@ -375,13 +378,15 @@ class CGI():
         
         if self.source_flux is not None:
             # scale input wavefront amplitude by the photon flux of source
-            inwave.wavefront *= np.sqrt((self.star_flux * inwave.pixelscale**2).value)
+            flux_per_pixel = self.source_flux * (inwave.pixelscale*u.pix)**2
+            print(flux_per_pixel)
+            inwave.wavefront *= np.sqrt((flux_per_pixel).value)
         
-        if self.offset[0]>0 or self.offset[1]>0:
-            inwave.tilt(Xangle=self.offset[0]*self.as_per_lamD, Yangle=self.offset[1]*self.as_per_lamD)
+        if self.source_offset[0]>0 or self.source_offset[1]>0:
+            inwave.tilt(Xangle=-self.source_offset[0]*self.as_per_lamD, Yangle=-self.source_offset[1]*self.as_per_lamD)
             
         self.inwave = inwave
-        
+    
     def calc_wfs(self, quiet=False): # returns all poppy.FresnelWavefront objects for each plane
         start = time.time()
         if not quiet: print('Propagating wavelength {:.3f}.'.format(self.wavelength.to(u.nm)))
