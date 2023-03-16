@@ -11,7 +11,9 @@ import astropy.units as u
 import time
 
 import cgi_phasec_poppy
-from . import hlc, spc, polmap, misc
+from . import hlc, spc, polmap
+
+import misc_funs as misc
 
 
 class CGI():
@@ -256,7 +258,10 @@ class CGI():
         return self.DM2.surface.get()
     
     def show_dms(self):
-        misc.myimshow2(self.get_dm1(), self.get_dm2(), 'DM1', 'DM2')
+        wf = poppy.FresnelWavefront(beam_radius=self.dm_diam/2, npix=self.npix, oversample=1)
+        misc.imshow2(self.get_dm1(), self.get_dm2(), 'DM1 Commands', 'DM2 Commands')
+        misc.imshow2(self.DM1.get_opd(wf), self.DM2.get_opd(wf), 
+                     'DM1 OPD', 'DM2 OPD', pxscl=self.dm_diam/self.npix)
     
     def set_source_offset(self, source_offset):
         self.source_offset = source_offset
@@ -386,7 +391,12 @@ class CGI():
             inwave.tilt(Xangle=-self.source_offset[0]*self.as_per_lamD, Yangle=-self.source_offset[1]*self.as_per_lamD)
             
         self.inwave = inwave
-    
+        
+    def show_polmap(self):
+        misc.imshow2(self.POLMAP.amplitude, self.POLMAP.opd,
+                     'POLMAP: Amplitude', 'POLMAP: OPD', 
+                     npix=self.npix, pxscl=self.POLMAP.pixelscale)
+        
     def calc_wfs(self, quiet=False): # returns all poppy.FresnelWavefront objects for each plane
         start = time.time()
         if not quiet: print('Propagating wavelength {:.3f}.'.format(self.wavelength.to(u.nm)))
