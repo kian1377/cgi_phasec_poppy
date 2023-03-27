@@ -4,7 +4,7 @@
 
 import numpy as np
 import poppy
-from poppy.accel_math import _ncp
+from poppy.accel_math import xp
 import astropy.units as u
 
 import math
@@ -29,8 +29,8 @@ from roman_phasec_proper import trim
 
 # def polmap( wavefront, polfile, pupil_diam_pix, condition, MUF=1.0 ):
 def polmap( polfile, wavelength, pupil_diam_pix, n, condition, MUF=1.0 ):
-    global _ncp
-    from poppy.accel_math import _ncp
+    global xp
+    from poppy.accel_math import xp
     
 #     n = proper.prop_get_gridsize( wavefront )
 #     lambda_m = proper.prop_get_wavelength(wavefront)
@@ -191,7 +191,7 @@ def polab( polfile, lambda_m, pupil_diam_pix, condition ):
             else:
                 pha[j,:] = map
                 
-    return _ncp.array(amp), _ncp.array(pha)
+    return xp.array(amp), xp.array(pha)
 
 
 

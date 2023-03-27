@@ -202,7 +202,9 @@ class CGI():
             self.POLMAP = poppy.ScalarTransmission('No Polarization Error Map')
             
         self.detector = poppy.Detector(pixelscale=self.psf_pixelscale, fov_pixels=self.npsf, interp_order=self.interp_order)
-        
+    
+    def getattr(self, attr):
+        return getattr(self, attr)
     # DM methods
     def init_dms(self):
         self.Nact = 48
@@ -423,7 +425,7 @@ class CGI():
             
         if not quiet: print('PSF calculated in {:.3f}s'.format(time.time()-start))
             
-        return wfs[-1].wavefront.get()
+        return wfs[-1].wavefront
     
     def snap(self): # returns just the intensity at the image plane
         start = time.time()
@@ -434,7 +436,7 @@ class CGI():
         else:
             wfs = spc.run(self, return_intermediates=False)
         
-        return wfs[-1].intensity.get()
+        return wfs[-1].intensity
     
     def add_noise(self, image):
         
