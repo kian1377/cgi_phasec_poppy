@@ -1,4 +1,4 @@
 
-*.ipynb_notebooks/*
+*.ipynb_checkpoints/*
 
 *__pycache__/*
