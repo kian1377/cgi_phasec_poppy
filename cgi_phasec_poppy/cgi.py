@@ -206,6 +206,9 @@ class CGI():
     def getattr(self, attr):
         return getattr(self, attr)
     
+    def setattr(self, attr, val):
+        setattr(self, attr, val)
+        
     # DM methods
     def init_dms(self):
         self.Nact = 48
