@@ -444,11 +444,11 @@ class CGI():
     
     def add_noise(self, image):
         
-        image_electrons = (image*u.photon/u.s)*self.texp * self.detector_gain 
+        image_electrons = (image*u.photon/u.s)*self.exp_time * self.detector_gain 
         
         noisy_im = np.random.poisson(image_electrons.value) * u.electron
         
-        dark_current = np.random.poisson( (self.dark_rate * self.texp).value * np.ones_like(image) ) * u.electron
+        dark_current = np.random.poisson( (self.dark_rate * self.exp_time).value * np.ones_like(image) ) * u.electron
         
         read_noise = np.random.randn(image.shape[0], image.shape[1]) * self.read_std * u.electron
         
