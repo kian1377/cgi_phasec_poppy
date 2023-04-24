@@ -1,5 +1,10 @@
 import numpy as np
-import cupy as cp
+try:
+    import cupy as cp
+    cp.cuda.Device(0).compute_capability
+except ImportError:
+    pass
+
 from scipy.interpolate import interp1d
 
 import poppy
@@ -15,6 +20,11 @@ from . import hlc, spc, polmap
 
 import misc_funs as misc
 
+def ensure_np_array(arr):
+    if cp and isinstance(arr, cp.ndarray):
+        return arr.get()
+    else:
+        return arr
 
 class CGI():
 
@@ -31,6 +41,7 @@ class CGI():
                  dm2_ref=np.zeros((48,48)),
                  polaxis=0,
                  source_flux=None,
+                 exp_time=None,
                 ):
         
         self.cgi_mode = cgi_mode
@@ -89,6 +100,7 @@ class CGI():
                        'imaging_lens_lens1', 'imaging_lens_lens2', 'fold4', 'image']
         
         self.source_flux = source_flux
+        self.exp_time = exp_time
         self.normalize = 'first' if source_flux is None else 'none'
            
     def init_mode_optics(self):
@@ -269,12 +281,6 @@ class CGI():
         misc.imshow2(self.DM1.get_opd(wf), self.DM2.get_opd(wf), 
                      'DM1 OPD', 'DM2 OPD', pxscl=self.dm_diam/self.npix)
     
-    def set_source_offset(self, source_offset):
-        self.source_offset = source_offset
-        
-    def set_wavelength(self, wavelength):
-        self.wavelength = wavelength
-    
     # utility functions
     def glass_index(self, glass):
         a = np.loadtxt( str( cgi_phasec_poppy.data_dir/'glass'/(glass+'_index.txt') ) )  # lambda_um index pairs
@@ -390,7 +396,6 @@ class CGI():
         if self.source_flux is not None:
             # scale input wavefront amplitude by the photon flux of source
             flux_per_pixel = self.source_flux * (inwave.pixelscale*u.pix)**2
-            print(flux_per_pixel)
             inwave.wavefront *= np.sqrt((flux_per_pixel).value)
         
         if self.source_offset[0]>0 or self.source_offset[1]>0:
@@ -440,21 +445,26 @@ class CGI():
         else:
             wfs = spc.run(self, return_intermediates=False)
         
-        return wfs[-1].intensity
+        im = wfs[-1].intensity
+        
+        return im
     
-    def add_noise(self, image):
-        
-        image_electrons = (image*u.photon/u.s)*self.exp_time * self.detector_gain 
-        
-        noisy_im = np.random.poisson(image_electrons.value) * u.electron
-        
-        dark_current = np.random.poisson( (self.dark_rate * self.exp_time).value * np.ones_like(image) ) * u.electron
-        
-        read_noise = np.random.randn(image.shape[0], image.shape[1]) * self.read_std * u.electron
-        
-        noisy_im = np.round( (noisy_im + dark_current + read_noise) )
-        
-        return noisy_im.value
+# emccd = EMCCDDetect(
+#     em_gain=5.,
+#     full_well_image=50000.,  # e-
+#     full_well_serial=90000.,  # e-
+#     dark_current=dark_current.to_value(u.electron/u.pixel/u.second),  # e-/pix/s
+#     cic=0.016,  # e-/pix/frame
+#     read_noise=120.,  # e-/pix/frame
+#     bias=10000.,  # e-
+#     qe=0.9,
+#     cr_rate=5.,  # hits/cm^2/s
+#     pixel_pitch=13e-6,  # m
+#     eperdn=7.,
+#     nbits=14,
+#     numel_gain_register=604,
+#     meta_path=emccd_path,
+# )
 
 
 
