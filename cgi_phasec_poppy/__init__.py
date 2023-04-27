@@ -2,6 +2,7 @@ from . import cgi
 from importlib import reload
 reload(cgi)
 from .cgi import CGI
+from .bbcgi import BBCGI
 
 __version__ = '0.1.0'
 

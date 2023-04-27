@@ -10,7 +10,6 @@ from scipy.interpolate import interp1d
 import poppy
 from poppy.poppy_core import PlaneType
 
-import ray
 from astropy.io import fits
 import astropy.units as u
 import time
