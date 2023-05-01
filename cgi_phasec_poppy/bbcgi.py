@@ -28,6 +28,7 @@ class BBCGI():
     def __init__(self, 
                  actors, 
                  exp_time=None,
+                 EMCCD=None,
                  dm1_ref=np.zeros((48,48)),
                  dm2_ref=np.zeros((48,48)),
                 ):
@@ -39,12 +40,15 @@ class BBCGI():
         self.dm2_ref = dm2_ref
         
         self.exp_time = exp_time
+        self.EMCCD = EMCCD
         
         self.psf_pixelscale = ray.get(actors[0].getattr.remote('psf_pixelscale'))
         self.psf_pixelscale_lamD = ray.get(actors[0].getattr.remote('psf_pixelscale_lamD'))
         
-        self.Nact = 48
+        self.Nact = ray.get(actors[0].getattr.remote('Nact'))
         self.npsf = ray.get(actors[0].getattr.remote('npsf'))
+        
+        self.dm_mask = ray.get(actors[0].getattr.remote('dm_mask'))
         
     def reset_dms(self):
         for i in range(self.Na):
@@ -89,11 +93,11 @@ class BBCGI():
             future_psfs = self.actors[i].calc_psf.remote()
             pending_psfs.append(future_psfs)
         psfs = xp.array(ray.get(pending_psfs))
-        clear_output(wait=True)
+        
         if not quiet: print('PSFs calculated in {:.3f}s.'.format(time.time()-start))
         return psfs
     
-    def snap(self, EMCCD=None):
+    def snap(self):
         pending_ims = []
         for i in range(self.Na):
             future_ims = self.actors[i].snap.remote()
@@ -101,10 +105,8 @@ class BBCGI():
         ims = xp.array(ray.get(pending_ims))
 
         im = xp.sum(ims, axis=0)/self.Na # average each of the 
-
-        clear_output(wait=True)
         
-        if EMCCD is not None and self.exp_time is not None:
+        if self.EMCCD is not None and self.exp_time is not None:
             im = EMCCD.sim_sub_frame(im, self.exp_time.to_value(u.s))
         
         return im
