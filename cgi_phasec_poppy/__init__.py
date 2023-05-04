@@ -2,7 +2,8 @@ from . import cgi
 from importlib import reload
 reload(cgi)
 from .cgi import CGI
-from .bbcgi import BBCGI
+from .proper_cgi import PROPERCGI
+from .multi_cgi import multiCGI
 
 __version__ = '0.1.0'
 

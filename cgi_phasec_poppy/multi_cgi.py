@@ -1,14 +1,14 @@
 import numpy as np
 try:
     import cupy as cp
-    cp.cuda.Device(0).compute_capability
+#     cp.cuda.Device(0).compute_capability
 except ImportError:
     pass
 
 import poppy
 from poppy.poppy_core import PlaneType
 
-xp = cp if poppy.accel_math._USE_CUPY else np
+# xp = cp if poppy.accel_math._USE_CUPY else np
 
 from IPython.display import clear_output
 
@@ -17,13 +17,12 @@ import astropy.units as u
 import time
 
 import cgi_phasec_poppy
-# from . import hlc, spc, polmap
 
 import misc_funs as misc
 
 import ray
 
-class BBCGI():
+class multiCGI():
 
     def __init__(self, 
                  actors, 
@@ -85,14 +84,23 @@ class BBCGI():
     def use_fpm(self, val): # val is boolean true/false
         for i in range(self.Na):
             self.actors[i].setattr.remote('use_fpm', val)
-        
+    
+    def source_offset(self, val):
+        for i in range(self.Na):
+            self.actors[i].setattr.remote('source_offset', val)
+    
     def calc_psfs(self, quiet=True):
         start = time.time()
         pending_psfs = []
         for i in range(self.Na):
             future_psfs = self.actors[i].calc_psf.remote()
             pending_psfs.append(future_psfs)
-        psfs = xp.array(ray.get(pending_psfs))
+        psfs = ray.get(pending_psfs)
+        if isinstance(psfs[0], np.ndarray):
+            xp = np
+        elif isinstance(psfs[0], cp.ndarray):
+            xp = cp
+        psfs = xp.array(psfs)
         
         if not quiet: print('PSFs calculated in {:.3f}s.'.format(time.time()-start))
         return psfs
@@ -102,8 +110,12 @@ class BBCGI():
         for i in range(self.Na):
             future_ims = self.actors[i].snap.remote()
             pending_ims.append(future_ims)
-        ims = xp.array(ray.get(pending_ims))
-
+        ims = ray.get(pending_ims)
+        if isinstance(ims[0], np.ndarray):
+            xp = np
+        elif isinstance(ims[0], cp.ndarray):
+            xp = cp
+        ims = xp.array(ims)
         im = xp.sum(ims, axis=0)/self.Na # average each of the 
         
         if self.EMCCD is not None and self.exp_time is not None:

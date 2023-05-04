@@ -1,9 +1,9 @@
 import numpy as np
 try:
     import cupy as cp
-    cp.cuda.Device(0).compute_capability
+#     cp.cuda.Device(0).compute_capability
 except ImportError:
-    pass
+    print()
 
 from scipy.interpolate import interp1d
 
@@ -247,6 +247,7 @@ class CGI():
                                                     actuator_spacing=self.act_spacing, 
                                                     inclination_x=0,inclination_y=9.65,
                                                     influence_func=str(self.dm_dir/'proper_inf_func.fits'))
+        
     
     def reset_dms(self):
         self.set_dm1(self.dm1_ref)
