@@ -449,22 +449,6 @@ class CGI():
         
         return im
     
-# emccd = EMCCDDetect(
-#     em_gain=5.,
-#     full_well_image=50000.,  # e-
-#     full_well_serial=90000.,  # e-
-#     dark_current=dark_current.to_value(u.electron/u.pixel/u.second),  # e-/pix/s
-#     cic=0.016,  # e-/pix/frame
-#     read_noise=120.,  # e-/pix/frame
-#     bias=10000.,  # e-
-#     qe=0.9,
-#     cr_rate=5.,  # hits/cm^2/s
-#     pixel_pitch=13e-6,  # m
-#     eperdn=7.,
-#     nbits=14,
-#     numel_gain_register=604,
-#     meta_path=emccd_path,
-# )
 
 
 

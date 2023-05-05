@@ -4,6 +4,7 @@ reload(cgi)
 from .cgi import CGI
 from .proper_cgi import PROPERCGI
 from .multi_cgi import multiCGI
+from .imshows import imshow1, imshow2, imshow3
 
 __version__ = '0.1.0'
 

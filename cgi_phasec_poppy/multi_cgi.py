@@ -119,7 +119,10 @@ class multiCGI():
         im = xp.sum(ims, axis=0)/self.Na # average each of the 
         
         if self.EMCCD is not None and self.exp_time is not None:
-            im = EMCCD.sim_sub_frame(im, self.exp_time.to_value(u.s))
+            if isinstance(im, np.ndarray):
+                im = self.EMCCD.sim_sub_frame(im, self.exp_time.to_value(u.s))
+            else: # convert to numpy array and back to cupy to use EMCCD with GPU
+                im = xp.array(self.EMCCD.sim_sub_frame(im.get(), self.exp_time.to_value(u.s)))
         
         return im
 
