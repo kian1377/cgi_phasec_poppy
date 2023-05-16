@@ -1,14 +1,18 @@
 import numpy as np
+from astropy.io import fits
+import astropy.units as u
+import time
 try:
     import proper
     import roman_phasec_proper
     roman_phasec_proper.copy_here()
 except ImportError:
     print('PROPER CGI model not installed and is unavailable')
-    
-from astropy.io import fits
-import astropy.units as u
-import time
+
+import cgi_phasec_poppy
+from . import imshows, math_module
+from .math_module import xp
+math_module.update_np(np)
 
 def pad_or_crop( arr_in, npix ):
     n_arr_in = arr_in.shape[0]

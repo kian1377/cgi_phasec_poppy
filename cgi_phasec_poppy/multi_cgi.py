@@ -1,26 +1,13 @@
 import numpy as np
-try:
-    import cupy as cp
-#     cp.cuda.Device(0).compute_capability
-except ImportError:
-    pass
-
-import poppy
-from poppy.poppy_core import PlaneType
-
-# xp = cp if poppy.accel_math._USE_CUPY else np
-
-from IPython.display import clear_output
-
+from scipy.interpolate import interp1d
 from astropy.io import fits
 import astropy.units as u
 import time
+import ray
 
 import cgi_phasec_poppy
-
-import misc_funs as misc
-
-import ray
+from . import hlc, spc, polmap, imshows, math_module
+from .math_module import xp
 
 class multiCGI():
 
@@ -32,7 +19,7 @@ class multiCGI():
                  dm2_ref=np.zeros((48,48)),
                 ):
         
-        self.Na = len(actors)
+        self.Na = len(actors) # total number of actors given
         self.actors = actors
         
         self.dm1_ref = dm1_ref

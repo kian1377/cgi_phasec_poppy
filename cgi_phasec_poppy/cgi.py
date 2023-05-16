@@ -1,29 +1,19 @@
 import numpy as np
-try:
-    import cupy as cp
-#     cp.cuda.Device(0).compute_capability
-except ImportError:
-    print()
-
 from scipy.interpolate import interp1d
-
-import poppy
-from poppy.poppy_core import PlaneType
-
 from astropy.io import fits
 import astropy.units as u
 import time
 
+import poppy
+from poppy.poppy_core import PlaneType
+
 import cgi_phasec_poppy
-from . import hlc, spc, polmap
+from . import hlc, spc, polmap, imshows, math_module
+from .math_module import xp
 
-import misc_funs as misc
-
-def ensure_np_array(arr):
-    if cp and isinstance(arr, cp.ndarray):
-        return arr.get()
-    else:
-        return arr
+if poppy.accel_math._USE_CUPY:
+    import cupy as cp
+    math_module.update_np(cp)
 
 class CGI():
 
@@ -41,6 +31,7 @@ class CGI():
                  polaxis=0,
                  source_flux=None,
                  exp_time=None,
+                 EMCCD=None,
                 ):
         
         self.cgi_mode = cgi_mode
@@ -99,8 +90,9 @@ class CGI():
                        'imaging_lens_lens1', 'imaging_lens_lens2', 'fold4', 'image']
         
         self.source_flux = source_flux
-        self.exp_time = exp_time
         self.normalize = 'first' if source_flux is None else 'none'
+        self.exp_time = exp_time
+        self.EMCCD = EMCCD
            
     def init_mode_optics(self):
         self.FPM_plane = poppy.ScalarTransmission('FPM Plane (No Optic)', planetype=PlaneType.intermediate) # placeholder
@@ -447,6 +439,12 @@ class CGI():
         
         im = wfs[-1].intensity
         
+        if self.EMCCD is not None and self.exp_time is not None:
+            if isinstance(im, np.ndarray):
+                im = self.EMCCD.sim_sub_frame(im, self.exp_time.to_value(u.s))
+            else: # convert to numpy array and back to cupy to use EMCCD with GPU
+                im = xp.array(self.EMCCD.sim_sub_frame(im.get(), self.exp_time.to_value(u.s)))
+                
         return im
     
 
