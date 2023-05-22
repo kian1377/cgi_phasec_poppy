@@ -184,7 +184,8 @@ def run(SPC, return_intermediates=False):
     fosys.add_optic(oap5, distance=d_pupilmask_oap5)
     if SPC.use_opds: fosys.add_optic(SPC.oap5_opd)
     
-    fosys.add_optic(SPC.FPM, distance=d_oap5_fpm)
+    if SPC.use_fpm: fosys.add_optic(SPC.FPM, distance=d_oap5_fpm)
+    else: fosys.add_optic(poppy.ScalarTransmission(), distance=d_oap5_fpm)
     fosys.add_optic(oap6, distance=d_fpm_oap6)
     if SPC.use_opds: fosys.add_optic(SPC.oap6_opd)
         
