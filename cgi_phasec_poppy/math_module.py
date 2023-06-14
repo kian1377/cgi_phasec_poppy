@@ -34,17 +34,17 @@ except ImportError:
 xp = np_backend(cp) if cupy_avail else np_backend(np)
 _scipy = scipy_backend(cupyx.scipy) if cupy_avail else scipy_backend(scipy)
 
-def update_np(module):
+def update_xp(module):
     xp._srcmodule = module
     
 def update_scipy(module):
     _scipy._srcmodule = module
     
 def ensure_np_array(arr):
-    if cp and isinstance(arr, cp.ndarray):
-        return arr.get()
-    else:
+    if isinstance(arr, np.ndarray):
         return arr
+    else:
+        return arr.get()
 
 def pad_or_crop( arr_in, npix ):
     n_arr_in = arr_in.shape[0]

@@ -2,16 +2,12 @@ Metadata-Version: 2.1
 Name: cgi-phasec-poppy
 Version: 0.1.0
 Summary: CGI Models in Python
-Home-page: UNKNOWN
 Author: Kian Milani
 Author-email: <kianmilani@arizona.edu>
-License: UNKNOWN
 Keywords: python,Coronagraph Instrument
-Platform: UNKNOWN
 Classifier: Development Status :: Alpha-0.1.0
 Classifier: Programming Language :: Python :: 3
 Classifier: Operating System :: Linux :: CentOS
 Classifier: Operating System :: Microsoft :: Windows
 
 End-to-end Roman CGI Models in Python using POPPY as the backend propagator
-

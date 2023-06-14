@@ -1,4 +1,4 @@
-#   Copyright 2021 California Institute of Technology
+#   Copyright 2020 California Institute of Technology
 # ------------------------------------------------------------------
 
 # Version 0.9, 15 June 2020, John Krist; beta-test version for mask evaluation
@@ -16,6 +16,8 @@
 # Version 1.2.3, 15 July 2021, John Krist: added dm_sampling_m as optional parameter
 # Version 1.2.8, 11 Nov 2021, John Krist: Added option for spc-spec_band2_rotated; fixed rotated SPC
 #     mask orientations
+# Version 1.2.9a, 11 April 2022, John Krist: fixed rotated SPC orientations
+# Version 1.4, Nov 2022, John Krist: fixed rotated SPC orientation again
 
 # experience has shown that with the Intel math libraries the program
 # can hang if run in a multithreaded condition with more than one 
@@ -145,7 +147,7 @@ def roman_phasec_compact( lambda_m, output_dim0, PASSVALUE={'dummy':0} ):
         is_spc = True
         file_dir = data_dir + '/spc_20200628_specrot/'  # must have trailing "/"
         pupil_diam_pix = 1000.0     # Y axis pupil diameter in pixels
-        pupil_file = file_dir + 'pupil_SPC-20200628_1000.fits'
+        pupil_file = file_dir + 'new_pupil_SPC-20200628_1000.fits'
         pupil_mask_file = file_dir + 'SPM_SPC-20200628_1000.fits'
         fpm_sampling = 0.05    # sampling in lambda0/D of FPM mask 
         fpm_file = file_dir + 'FPM_SPC-20200628_res20_flip.fits'

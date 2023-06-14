@@ -12,7 +12,6 @@ except ImportError:
 import cgi_phasec_poppy
 from . import imshows, math_module
 from .math_module import xp
-math_module.update_np(np)
 
 def pad_or_crop( arr_in, npix ):
     n_arr_in = arr_in.shape[0]
@@ -47,7 +46,7 @@ class PROPERCGI():
                  source_flux=None,
                  exp_time=None,
                 ):
-        
+        math_module.update_xp(np)
         self.cgi_mode = cgi_mode
         
         self.pupil_diam = 2.363114*u.m

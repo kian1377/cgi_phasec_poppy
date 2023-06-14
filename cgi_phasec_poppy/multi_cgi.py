@@ -7,7 +7,7 @@ import ray
 
 import cgi_phasec_poppy
 from . import hlc, spc, polmap, imshows, math_module
-from .math_module import xp
+from .math_module import xp, ensure_np_array
 
 class multiCGI():
 
@@ -98,18 +98,11 @@ class multiCGI():
             future_ims = self.actors[i].snap.remote()
             pending_ims.append(future_ims)
         ims = ray.get(pending_ims)
-        if isinstance(ims[0], np.ndarray):
-            xp = np
-        elif isinstance(ims[0], cp.ndarray):
-            xp = cp
         ims = xp.array(ims)
         im = xp.sum(ims, axis=0)/self.Na # average each of the 
         
         if self.EMCCD is not None and self.exp_time is not None:
-            if isinstance(im, np.ndarray):
-                im = self.EMCCD.sim_sub_frame(im, self.exp_time.to_value(u.s))
-            else: # convert to numpy array and back to cupy to use EMCCD with GPU
-                im = xp.array(self.EMCCD.sim_sub_frame(im.get(), self.exp_time.to_value(u.s)))
+            im = xp.array(self.EMCCD.sim_sub_frame(ensure_np_array(im), self.exp_time.to_value(u.s)))
         
         return im
 

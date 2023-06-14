@@ -6,6 +6,7 @@ import time
 
 import poppy
 from poppy.poppy_core import PlaneType
+import proper
 
 import cgi_phasec_poppy
 from . import hlc, hlc_dev, spc, polmap, imshows, math_module
@@ -15,7 +16,7 @@ if poppy.accel_math._USE_CUPY:
     import cupy as cp
     math_module.update_xp(cp)
 
-class CGI():
+class CGIDEV():
 
     def __init__(self, 
                  cgi_mode='hlc', 
@@ -98,10 +99,11 @@ class CGI():
         self.FPM_plane = poppy.ScalarTransmission('FPM Plane (No Optic)', planetype=PlaneType.intermediate) # placeholder
         
         if self.cgi_mode=='hlc':
-            self.optics_dir = cgi_phasec_poppy.data_dir/'hlc'
+            self.optics_dir = cgi_phasec_poppy.data_dir/'hlc_20190210b'
             
             self.PUPIL = poppy.FITSOpticalElement('Roman Pupil', 
-                                                  transmission=str(self.optics_dir/'pupil_n310_new.fits'),
+#                                                   transmission=str(self.optics_dir/'pupil.fits'),
+                                                  transmission=str(self.optics_dir/'pupil_n310.fits'),
                                                   pixelscale=self.pupil_diam.value/310,
                                                   planetype=PlaneType.pupil)
     
@@ -109,43 +111,39 @@ class CGI():
         
             self.dm2_mask = poppy.FITSOpticalElement('DM2 Mask', 
                                                      transmission=str(self.optics_dir/'dm2mask.fits'),
+                                                     pixelscale=1,
                                                      planetype=PlaneType.intermediate)
             if self.use_fpm:
-                # Find nearest available FPM wavelength that matches specified wavelength and initialize the FPM data
-                lam_um = self.wavelength.value * 1e6
+                # find nearest available FPM wavelength that matches specified wavelength
+                lambda_m = self.wavelength.to_value(u.m)
+                lam_um = lambda_m * 1e6
                 f = open( str(self.optics_dir/'fpm_files.txt') )
                 fpm_nlam = int(f.readline())
-                fpm_lams = np.zeros((fpm_nlam),dtype=float)
-                for j in range(0,fpm_nlam): 
-                    fpm_lams[j] = float(f.readline())*1e-6
-                fpm_root_fnames = [j.strip() for j in f.readlines()] 
+                fpm_lam_um = np.zeros((fpm_nlam),dtype=float)
+                for j in range(0,fpm_nlam):
+                    fpm_lam_um[j] = float(f.readline())
+                fpm_lams = [j.strip() for j in f.readlines()] 
                 f.close()
-
-                diff = np.abs(fpm_lams - self.wavelength.value)
+                diff = np.abs(fpm_lam_um - lam_um)
                 w = np.argmin( diff )
-                if diff[w] > 0.1e-9: 
-                    raise Exception('Only wavelengths within 0.1nm of avalable FPM wavelengths can be used.'
-                                    'Closest available to requested wavelength is {}.'.format(fpm_lams[w]))
-                fpm_rootname = self.optics_dir/fpm_root_fnames[w]
-
-                fpm_r_fname = str(fpm_rootname)+'real.fits'
-                fpm_i_fname = str(fpm_rootname)+'imag.fits'
-
-                fpm_r = fits.getdata(fpm_r_fname)
-                fpm_i = fits.getdata(fpm_i_fname)
-                    
-                self.fpm_phasor = fpm_r + 1j*fpm_i
-                
-#                 self.fpm_mask = (fpm_r != fpm_r[0,0]).astype(int)
-                self.fpm_mask = (fpm_r != fpm_r[fpm_r.shape[0]-1,fpm_r.shape[0]-1]).astype(int)
-                self.fpm_ref_wavelength = fits.getheader(fpm_r_fname)['WAVELENC']
-                self.fpm_pixelscale_lamD = fits.getheader(fpm_r_fname)['PIXSCLLD']
+                if diff[w] > 0.0001:
+                    print("Error in roman_phasec: requested wavelength not within 0.1 nm of nearest available FPM wavelength.")
+                    print("  requested (um) = " + str(lam_um) + "  closest available (um) = " + str(fpm_lam_um[w]) ) 
+                    raise Exception(' ')
+                fpm_rootname = str(self.optics_dir/fpm_lams[w])
+                (r, header) = proper.prop_fits_read( fpm_rootname+'real.fits', header=True ) 
+                i = proper.prop_fits_read( fpm_rootname+'imag.fits' )
+                self.fpm_array = xp.array(r + i * 1j)
+                self.fpm_mask = xp.array((r != r[0,0]).astype(int))
+                self.fpm_lam0_m = header['FPMLAM0M']             # FPM reference wavelength
+                self.fpm_sampling_lam0divD = header['FPMDX']     # lam/D sampling @ fpm_lam0_m
             else:
                 self.FPM = None
                 
             self.LS = poppy.FITSOpticalElement('Lyot Stop', 
-                                               transmission=str(self.optics_dir/'lyot_hlc_n310_new.fits'), 
-                                               pixelscale=5.50105901118828e-05 * 309/310,
+#                                                transmission=str(self.optics_dir/'lyot_rotated.fits'), 
+                                               transmission=str(self.optics_dir/'lyot_n310_new.fits'), 
+                                               pixelscale=5.50105901118828e-05,
                                                planetype=PlaneType.pupil)
             
             if self.use_fieldstop: 
@@ -228,17 +226,15 @@ class CGI():
             self.dm_zernikes = poppy.zernike.arbitrary_basis(cp.array(self.dm_mask), nterms=15, outside=0).get()
         else:
             self.dm_zernikes = poppy.zernike.arbitrary_basis(self.dm_mask, nterms=15, outside=0)
-        
-        self.dm_dir = cgi_phasec_poppy.data_dir/'dm-acts'
-        
+            
         self.DM1 = poppy.ContinuousDeformableMirror(dm_shape=(self.Nact,self.Nact), name='DM1', 
                                                     actuator_spacing=self.act_spacing, 
                                                     inclination_x=0,inclination_y=9.65,
-                                                    influence_func=str(self.dm_dir/'proper_inf_func.fits'))
+                                                    influence_func=str(cgi_phasec_poppy.data_dir/'proper_inf_func.fits'))
         self.DM2 = poppy.ContinuousDeformableMirror(dm_shape=(self.Nact,self.Nact), name='DM2', 
                                                     actuator_spacing=self.act_spacing, 
                                                     inclination_x=0,inclination_y=9.65,
-                                                    influence_func=str(self.dm_dir/'proper_inf_func.fits'))
+                                                    influence_func=str(cgi_phasec_poppy.data_dir/'proper_inf_func.fits'))
         
     
     def reset_dms(self):
@@ -406,7 +402,8 @@ class CGI():
             
         self.init_inwave()
         if self.cgi_mode=='hlc':
-            wfs = hlc.run(self, return_intermediates=True)
+#             wfs = hlc.run(self, return_intermediates=True)
+            wfs = hlc_dev.run(self, return_intermediates=True)
         else:
             wfs = spc.run(self, return_intermediates=True)
             
