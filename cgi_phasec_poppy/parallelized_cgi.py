@@ -9,7 +9,7 @@ import cgi_phasec_poppy
 from . import hlc, spc, polmap, imshows, math_module
 from .math_module import xp, ensure_np_array
 
-class multiCGI():
+class ParallelizedCGI():
 
     def __init__(self, 
                  actors, 
