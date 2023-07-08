@@ -385,14 +385,15 @@ class CGI():
         inwave = poppy.FresnelWavefront(beam_radius=self.pupil_diam/2, wavelength=self.wavelength,
                                         npix=self.npix, oversample=self.oversample)
         
+        if self.source_offset[0]>0 or self.source_offset[1]>0:
+            inwave.tilt(Xangle=-self.source_offset[0]*self.as_per_lamD, Yangle=-self.source_offset[1]*self.as_per_lamD)
+            
         if self.source_flux is not None:
             # scale input wavefront amplitude by the photon flux of source
             flux_per_pixel = self.source_flux * (inwave.pixelscale*u.pix)**2
             inwave.wavefront *= np.sqrt((flux_per_pixel).value)
+            self.normalize = 'none'
         
-        if self.source_offset[0]>0 or self.source_offset[1]>0:
-            inwave.tilt(Xangle=-self.source_offset[0]*self.as_per_lamD, Yangle=-self.source_offset[1]*self.as_per_lamD)
-            
         self.inwave = inwave
         
     def show_polmap(self):
@@ -439,29 +440,24 @@ class CGI():
         
         im = wfs[-1].intensity
         
-#         if self.EMCCD is not None and self.exp_time is not None:
-#             if isinstance(im, np.ndarray):
-#                 im = self.EMCCD.sim_sub_frame(im, self.exp_time.to_value(u.s))
-#             else: # convert to numpy array and back to cupy to use EMCCD with GPU
-#                 im = xp.array(self.EMCCD.sim_sub_frame(im.get(), self.exp_time.to_value(u.s)))
+        if self.EMCCD is not None and self.exp_time is not None:
+            if isinstance(im, np.ndarray):
+                im = self.EMCCD.sim_sub_frame(im, self.exp_time.to_value(u.s))
+            else: # convert to numpy array and back to cupy to use EMCCD with GPU
+                im = xp.array(self.EMCCD.sim_sub_frame(im.get(), self.exp_time.to_value(u.s)))
                 
         return im
     
-    
     def add_noise(self, image):
         
-        if self.peak_flux is None or self.exp_time is None or self.dark_current_rate is None or self.read_noise is None:
+        if self.exp_time is None or self.dark_current_rate is None or self.read_noise is None:
             raise Exception('Must provide noise statistic values in order to add noise to an image.')
         else:
-            peak_flux = self.peak_flux.to_value(u.electron/u.pix/u.s)
             exp_time = self.exp_time.to_value(u.second)
             dark_current_rate = self.dark_current_rate.to_value(u.electron/u.pix/u.s)
             read_noise = self.read_noise.to_value(u.electron/u.pix) # per frame but this code only supports 1 frame
             
-        peakCounts = (peak_flux * exp_time)
-        peakElectrons = self.gain * peakCounts
-
-        imageInElectrons = peakElectrons * image
+        imageInElectrons = self.gain * image * exp_time
 
         imageInCounts = 0
         print(type(imageInElectrons), xp.ndarray)
@@ -477,10 +473,7 @@ class CGI():
         readNoise = read_noise * xp.random.randn(image.shape[0], image.shape[1])
 
         # Convert back from e- to counts and then discretize
-        imageInCounts = xp.round( (noisyImageInElectrons + darkCurrent + readNoise) / self.gain)
-
-        # Convert back from counts to normalized intensity
-        noisy_image = imageInCounts / peakCounts
+        noisy_image = xp.round( (noisyImageInElectrons + darkCurrent + readNoise) )
         
         
         return noisy_image

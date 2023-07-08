@@ -26,7 +26,7 @@ class scipy_backend:
 try:
     import cupy as cp
     import cupyx.scipy
-    cp.cuda.Device(0).compute_capability
+#     cp.cuda.Device(0).compute_capability
     cupy_avail = True
 except ImportError:
     cupy_avail = False
