@@ -43,6 +43,7 @@ class PROPERCGI():
                  dm1_ref=np.zeros((48,48)),
                  dm2_ref=np.zeros((48,48)),
                  polaxis=0,
+                 norm=1,
                  source_flux=None,
                  exp_time=None,
                 ):
@@ -70,6 +71,8 @@ class PROPERCGI():
         else: 
             self.wavelength = wavelength
         
+        
+        self.norm = norm
         self.source_offset = source_offset
         self.use_fpm = use_fpm
         self.use_pupil_defocus = use_pupil_defocus
@@ -95,6 +98,7 @@ class PROPERCGI():
         x,y = np.meshgrid(xx,xx)
         r = np.sqrt(x**2 + y**2)
         self.dm_mask[r>47] = 0
+        
         
         self.set_dm1(dm1_ref)
         self.set_dm2(dm2_ref)
@@ -200,7 +204,7 @@ class PROPERCGI():
         
         wf = pad_or_crop(wf, self.npsf)
         
-        return np.abs(wf)**2
+        return np.abs(wf)**2/self.norm
 
 
         

@@ -149,7 +149,7 @@ class CGI():
                                                planetype=PlaneType.pupil)
             
             if self.use_fieldstop: 
-                radius = 9.7/(310/(self.npix*self.oversample)) * (self.wavelength_c/self.wavelength) * 7.229503001768824e-06*u.m
+                radius = 9.8/(310/(self.npix*self.oversample)) * (self.wavelength_c/self.wavelength) * 7.229503001768824e-06*u.m
                 self.fieldstop = poppy.CircularAperture(radius=radius, name='HLC Field Stop', gray_pixel=True)
             else: 
                 self.fieldstop = poppy.ScalarTransmission(planetype=PlaneType.intermediate, name='Field Stop Plane (No Optic)')
@@ -222,7 +222,8 @@ class CGI():
         xx = (np.linspace(0, self.Nact-1, self.Nact) - self.Nact/2 + 1/2) * self.act_spacing.to(u.mm).value*2
         x,y = np.meshgrid(xx,xx)
         r = np.sqrt(x**2 + y**2)
-        self.dm_mask[r>47] = 0
+        self.dm_mask[r>47.5] = 0
+        self.Nacts = int(self.dm_mask.sum())
         
         if poppy.accel_math._USE_CUPY:
             self.dm_zernikes = poppy.zernike.arbitrary_basis(cp.array(self.dm_mask), nterms=15, outside=0).get()

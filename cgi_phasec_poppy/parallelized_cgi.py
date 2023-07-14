@@ -119,7 +119,7 @@ class ParallelizedCGI():
         if self.use_noise:
             im = self.add_noise(ims)
         else:
-            im = xp.sum(ims, axis=0)/self.Na # average each of the 
+            im = xp.sum(ims, axis=0)/self.Na # average each of the images
             
         if self.Iref is not None:
             im /= self.Iref
