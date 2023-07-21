@@ -36,6 +36,7 @@ class ParallelizedCGI():
         self.psf_pixelscale_lamD = ray.get(actors[0].getattr.remote('psf_pixelscale_lamD'))
         
         self.Nact = ray.get(actors[0].getattr.remote('Nact'))
+        self.Nacts = ray.get(actors[0].getattr.remote('Nacts'))
         self.npsf = ray.get(actors[0].getattr.remote('npsf'))
         
         self.dm_mask = ray.get(actors[0].getattr.remote('dm_mask'))

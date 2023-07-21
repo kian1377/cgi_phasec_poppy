@@ -31,6 +31,7 @@ class CGI():
                  polaxis=0,
                  source_flux=None,
                  exp_time=None,
+                 Imax_ref=None,
                  EMCCD=None,
                 ):
         
@@ -93,6 +94,8 @@ class CGI():
         self.normalize = 'first' if source_flux is None else 'none'
         self.exp_time = exp_time
         self.EMCCD = EMCCD
+        
+        self.Imax_ref = Imax_ref
            
     def init_mode_optics(self):
         self.FPM_plane = poppy.ScalarTransmission('FPM Plane (No Optic)', planetype=PlaneType.intermediate) # placeholder
@@ -425,10 +428,15 @@ class CGI():
             wfs = hlc.run(self, return_intermediates=False)
         else:
             wfs = spc.run(self, return_intermediates=False)
-            
+        
+        psf_wf = wfs[-1].wavefront
+        if self.Imax_ref is not None:
+            psf_wf /= np.sqrt(self.Imax_ref)
+        
         if not quiet: print('PSF calculated in {:.3f}s'.format(time.time()-start))
-            
-        return wfs[-1].wavefront
+        
+        
+        return psf_wf
     
     def snap(self): # returns just the intensity at the image plane
         start = time.time()
@@ -447,6 +455,9 @@ class CGI():
             else: # convert to numpy array and back to cupy to use EMCCD with GPU
                 im = xp.array(self.EMCCD.sim_sub_frame(im.get(), self.exp_time.to_value(u.s)))
                 
+        if self.Imax_ref is not None:
+            im /= self.Imax_ref
+            
         return im
     
     def add_noise(self, image):
