@@ -16,8 +16,9 @@ class SOURCE():
                  temp,
                  diameter,
                  lambdas=None,
+                 name='UNNAMED',
                 ):
-
+        self.name = name
         self.wavelengths = wavelengths.to(u.m)
         self.distance = distance.to(u.m)
         self.temp = temp.to(u.K)
@@ -40,18 +41,17 @@ class SOURCE():
         lam_max = np.max(self.lambdas.to_value(u.nm))
         spec_min = np.min(self.spectrum.to_value(u.W/u.m**2/u.nm))
         spec_max = np.max(self.spectrum.to_value(u.W/u.m**2/u.nm))
-        
-        
+
         wavelengths = self.wavelengths.to_value(u.nm)
         del_waves = wavelengths[1]-wavelengths[0]
-        
-        
+
         fig,ax = plt.subplots(1,1,dpi=125)
         ax.plot(self.lambdas.to(u.nm), self.spectrum.to(u.W/u.m**2/u.nm))
         ax.set_xlim([lam_min, lam_max])
         ax.set_ylim([spec_min-0.1*spec_min, spec_max+0.1*spec_min])
         ax.set_xlabel('$\lambda$ [nm]')
         ax.set_ylabel('$W/m^2/nm$')
+        ax.set_title(f'Flux for {self.name}')
         
         wavelength_c = (wavelengths[-1] + wavelengths[0])/2
         for i in range(len(wavelengths)):
@@ -73,13 +73,14 @@ class SOURCE():
         
         wavelengths = self.wavelengths.to_value(u.nm)
         del_waves = wavelengths[1]-wavelengths[0]
-
+        
         fig,ax = plt.subplots(1,1,dpi=125)
         ax.plot(self.lambdas.to(u.nm), self.spectrum_ph.to(u.ph/u.s/u.m**2))
         ax.set_xlim([lam_min, lam_max])
         ax.set_ylim([spec_min-0.1*spec_min, spec_max+0.1*spec_min])
         ax.set_xlabel('$\lambda$ [nm]')
         ax.set_ylabel('$ph/s/m^2$')
+        ax.set_title(f'Photon Flux for {self.name}')
         
         wavelength_c = (wavelengths[-1] + wavelengths[0])/2
         for i in range(len(wavelengths)):
