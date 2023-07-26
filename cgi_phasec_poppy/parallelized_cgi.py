@@ -20,7 +20,7 @@ class ParallelizedCGI():
                  dm1_ref=np.zeros((48,48)),
                  dm2_ref=np.zeros((48,48)),
                  use_noise=False,
-                 Iref=None,
+                 Imax_ref=None,
                 ):
         
         self.Na = len(actors) # total number of actors given
@@ -43,7 +43,7 @@ class ParallelizedCGI():
         
         self.use_noise = use_noise
         
-        self.Iref = Iref
+        self.Imax_ref = Imax_ref
     
     def set_actor_attr(self, attr, val):
         for i in range(self.Na):
@@ -117,38 +117,46 @@ class ParallelizedCGI():
 #         if self.EMCCD is not None and self.exp_time is not None:
 #             im = xp.array(self.EMCCD.sim_sub_frame(ensure_np_array(im), self.exp_time.to_value(u.s)))
         
+#         if self.use_noise:
+#             im = self.add_noise(ims)
+#         else:
+#             im = xp.sum(ims, axis=0)/self.Na # average each of the images
+        
         if self.use_noise:
-            im = self.add_noise(ims)
+            im = xp.sum(ims, axis=0)
+            im = self.add_noise(im)
         else:
-            im = xp.sum(ims, axis=0)/self.Na # average each of the images
+            im = xp.sum(ims, axis=0)/self.Na
             
-        if self.Iref is not None:
-            im /= self.Iref
+        if self.Imax_ref is not None:
+            im /= self.Imax_ref
             
         return im
     
-    def add_noise(self, mono_images):
+    def add_noise(self, image):
         
         if self.exp_time is None or self.dark_current_rate is None or self.read_noise is None:
             raise Exception('Must provide noise statistic values in order to add noise to an image.')
         else:
             exp_time = self.exp_time.to_value(u.second)
             dark_current_rate = self.dark_current_rate.to_value(u.electron/u.pix/u.s)
-            read_noise = self.read_noise.to_value(u.electron/u.pix) # per frame but this code only supports 1 frame
+            read_noise_std = self.read_noise.to_value(u.electron/u.pix) # per frame but this code only supports 1 frame
             
-        # add photon noise to each individual subframe then add read noise and dark current
-        image_in_counts = xp.sum(mono_images, axis=0) * exp_time
-        noisy_image_in_counts = xp.random.poisson(image_in_counts)
-        noisy_image_in_electrons = self.gain * noisy_image_in_counts
+        image_in_e = self.gain * image * exp_time
         
+        # Add photon shot noise
+        noisy_image_in_e = xp.random.poisson(image_in_e)
+
         # Compute dark current
-        darkCurrent = dark_current_rate * exp_time * xp.ones_like(image_in_counts)
-        darkCurrent = xp.random.poisson(darkCurrent)
+        dark = dark_current_rate * exp_time * xp.ones_like(image)
+        dark = xp.random.poisson(dark)
 
         # Compute Gaussian read noise
-        readNoise = read_noise * xp.random.randn(image_in_counts.shape[0], image_in_counts.shape[1])
+        read = read_noise_std * xp.random.randn(image.shape[0], image.shape[1])
 
         # Convert back from e- to counts and then discretize
-        noisy_image = xp.round( (self.gain*noisy_image_in_electrons + darkCurrent + readNoise) )
+        noisy_image = xp.round( (noisy_image_in_e + dark + read) )
+        
         
         return noisy_image
+    

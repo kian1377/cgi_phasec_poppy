@@ -30,6 +30,7 @@ class CGI():
                  dm2_ref=np.zeros((48,48)),
                  polaxis=0,
                  source_flux=None,
+                 use_noise=False,
                  exp_time=None,
                  Imax_ref=None,
                  EMCCD=None,
@@ -91,6 +92,7 @@ class CGI():
                        'imaging_lens_lens1', 'imaging_lens_lens2', 'fold4', 'image']
         
         self.source_flux = source_flux
+        self.use_noise = use_noise
         self.normalize = 'first' if source_flux is None else 'none'
         self.exp_time = exp_time
         self.EMCCD = EMCCD
@@ -449,12 +451,15 @@ class CGI():
         
         im = wfs[-1].intensity
         
-        if self.EMCCD is not None and self.exp_time is not None:
-            if isinstance(im, np.ndarray):
-                im = self.EMCCD.sim_sub_frame(im, self.exp_time.to_value(u.s))
-            else: # convert to numpy array and back to cupy to use EMCCD with GPU
-                im = xp.array(self.EMCCD.sim_sub_frame(im.get(), self.exp_time.to_value(u.s)))
-                
+#         if self.EMCCD is not None and self.exp_time is not None:
+#             if isinstance(im, np.ndarray):
+#                 im = self.EMCCD.sim_sub_frame(im, self.exp_time.to_value(u.s))
+#             else: # convert to numpy array and back to cupy to use EMCCD with GPU
+#                 im = xp.array(self.EMCCD.sim_sub_frame(im.get(), self.exp_time.to_value(u.s)))
+        
+        if self.use_noise:
+            im = self.add_noise(im)
+        
         if self.Imax_ref is not None:
             im /= self.Imax_ref
             
@@ -467,25 +472,22 @@ class CGI():
         else:
             exp_time = self.exp_time.to_value(u.second)
             dark_current_rate = self.dark_current_rate.to_value(u.electron/u.pix/u.s)
-            read_noise = self.read_noise.to_value(u.electron/u.pix) # per frame but this code only supports 1 frame
+            read_noise_std = self.read_noise.to_value(u.electron/u.pix) # per frame but this code only supports 1 frame
             
-        imageInElectrons = self.gain * image * exp_time
-
-        imageInCounts = 0
-        print(type(imageInElectrons), xp.ndarray)
+        image_in_e = self.gain * image * exp_time
         
         # Add photon shot noise
-        noisyImageInElectrons = xp.random.poisson(imageInElectrons)
+        noisy_image_in_e = xp.random.poisson(image_in_e)
 
         # Compute dark current
-        darkCurrent = dark_current_rate * exp_time * xp.ones_like(image)
-        darkCurrent = xp.random.poisson(darkCurrent)
+        dark = dark_current_rate * exp_time * xp.ones_like(image)
+        dark = xp.random.poisson(dark)
 
         # Compute Gaussian read noise
-        readNoise = read_noise * xp.random.randn(image.shape[0], image.shape[1])
+        read = read_noise_std * xp.random.randn(image.shape[0], image.shape[1])
 
         # Convert back from e- to counts and then discretize
-        noisy_image = xp.round( (noisyImageInElectrons + darkCurrent + readNoise) )
+        noisy_image = xp.round( (noisy_image_in_e + dark + read) )
         
         
         return noisy_image
