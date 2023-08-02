@@ -30,7 +30,7 @@ class SOURCE():
         self.del_lam = self.lambdas[1] - self.lambdas[0]
         self.energies = h*c/self.lambdas / u.photon
         
-        self.spectrum = 2*np.pi*h*c**2/(self.lambdas**5)/(np.exp(h*c/(k_B*self.temp*self.lambdas)) - 1)/u.sr
+        self.spectrum = 2*h*c**2/(self.lambdas**5)/(np.exp(h*c/(k_B*self.temp*self.lambdas)) - 1)/u.sr
         self.spectrum = self.spectrum.to(u.J/u.s/u.sr/u.m**2/u.nm) * self.solid_angle
         
         self.spectrum_ph = self.spectrum / self.energies * self.del_lam
@@ -130,7 +130,6 @@ class SOURCE():
         lambdas = self.lambdas.to(u.nm)
         
         spectrum_ph = (self.spectrum_ph/self.del_lam).to(u.ph/u.s/u.m**2/u.nm)
-#         print(spectrum_ph)
         fluxes = []
         for i in range(Nwaves):
             wavelength = wavelengths[i]

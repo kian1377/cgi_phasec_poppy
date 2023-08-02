@@ -28,6 +28,8 @@ class ParallelizedCGI():
         
         self.dm1_ref = dm1_ref
         self.dm2_ref = dm2_ref
+        self.set_dm1(dm1_ref)
+        self.set_dm2(dm2_ref)
         
         self.exp_time = exp_time
         self.EMCCD = EMCCD
@@ -125,6 +127,8 @@ class ParallelizedCGI():
         if self.use_noise:
             im = xp.sum(ims, axis=0)
             im = self.add_noise(im)
+        elif ray.get(self.actors[0].getattr.remote('source_flux')) is not None:
+            im = xp.sum(ims, axis=0)
         else:
             im = xp.sum(ims, axis=0)/self.Na
             
