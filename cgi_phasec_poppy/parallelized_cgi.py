@@ -15,11 +15,13 @@ class ParallelizedCGI():
 
     def __init__(self, 
                  actors, 
-                 exp_time=None,
-                 EMCCD=None,
                  dm1_ref=np.zeros((48,48)),
                  dm2_ref=np.zeros((48,48)),
                  use_noise=False,
+                 exp_time=None,
+                 exp_time_ref=None,
+                 gain=1,
+                 gain_ref=None,
                  Imax_ref=None,
                 ):
         
@@ -32,7 +34,7 @@ class ParallelizedCGI():
         self.set_dm2(dm2_ref)
         
         self.exp_time = exp_time
-        self.EMCCD = EMCCD
+        self.gain = gain
         
         self.psf_pixelscale = ray.get(actors[0].getattr.remote('psf_pixelscale'))
         self.psf_pixelscale_lamD = ray.get(actors[0].getattr.remote('psf_pixelscale_lamD'))
@@ -45,6 +47,8 @@ class ParallelizedCGI():
         
         self.use_noise = use_noise
         
+        self.gain_ref = None
+        self.exp_time_ref = None
         self.Imax_ref = Imax_ref
     
     def set_actor_attr(self, attr, val):
@@ -134,6 +138,12 @@ class ParallelizedCGI():
             
         if self.Imax_ref is not None:
             im /= self.Imax_ref
+            
+        if self.exp_time is not None and self.exp_time_ref is not None:
+            im /= (self.exp_time/self.exp_time_ref).value
+            
+        if self.gain is not None and self.gain_ref is not None:
+            im /= self.gain/self.gain_ref
             
         return im
     

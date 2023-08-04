@@ -24,7 +24,17 @@ class SOURCE():
         self.temp = temp.to(u.K)
         self.diameter = diameter.to(u.m)
         
+        th = np.arctan(self.diameter/2/self.distance)
+        print(th)
+        
         self.solid_angle = np.pi * (self.diameter/2/self.distance)**2 * u.sr # from wikipedia page on solid angle approximation
+        print(self.solid_angle)
+#         self.solid_angle = th**2
+#         print(self.solid_angle)
+#         th = np.arctan(self.diameter/2/self.distance)
+#         print(th)
+#         self.solid_angle = 2*np.pi*(1-np.cos(th)) * u.sr
+#         print(self.solid_angle)
         
         self.lambdas = np.linspace(400, 1000, 12001)*1e-9*u.m if lambdas is None else lambdas
         self.del_lam = self.lambdas[1] - self.lambdas[0]
