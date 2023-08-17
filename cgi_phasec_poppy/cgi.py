@@ -32,8 +32,10 @@ class CGI():
                  source_flux=None,
                  use_noise=False,
                  exp_time=None,
+                 exp_time_ref=None,
+                 gain=1,
+                 gain_ref=None,
                  Imax_ref=None,
-                 EMCCD=None,
                 ):
         
         self.cgi_mode = cgi_mode
@@ -95,9 +97,11 @@ class CGI():
         self.use_noise = use_noise
         self.normalize = 'first' if source_flux is None else 'none'
         self.exp_time = exp_time
-        self.EMCCD = EMCCD
-        
+        self.gain = gain
+        self.gain_ref = gain_ref
+        self.exp_time_ref = exp_time_ref
         self.Imax_ref = Imax_ref
+        
            
     def init_mode_optics(self):
         self.FPM_plane = poppy.ScalarTransmission('FPM Plane (No Optic)', planetype=PlaneType.intermediate) # placeholder
@@ -450,18 +454,18 @@ class CGI():
             wfs = spc.run(self, return_intermediates=False)
         
         im = wfs[-1].intensity
-        
-#         if self.EMCCD is not None and self.exp_time is not None:
-#             if isinstance(im, np.ndarray):
-#                 im = self.EMCCD.sim_sub_frame(im, self.exp_time.to_value(u.s))
-#             else: # convert to numpy array and back to cupy to use EMCCD with GPU
-#                 im = xp.array(self.EMCCD.sim_sub_frame(im.get(), self.exp_time.to_value(u.s)))
-        
+
         if self.use_noise:
             im = self.add_noise(im)
         
         if self.Imax_ref is not None:
             im /= self.Imax_ref
+            
+        if self.exp_time is not None and self.exp_time_ref is not None:
+            im /= (self.exp_time/self.exp_time_ref).value
+            
+        if self.gain is not None and self.gain_ref is not None:
+            im /= self.gain/self.gain_ref
             
         return im
     
@@ -473,11 +477,12 @@ class CGI():
             exp_time = self.exp_time.to_value(u.second)
             dark_current_rate = self.dark_current_rate.to_value(u.electron/u.pix/u.s)
             read_noise_std = self.read_noise.to_value(u.electron/u.pix) # per frame but this code only supports 1 frame
-            
-        image_in_e = self.gain * image * exp_time
         
+        image_in_counts = image * exp_time
         # Add photon shot noise
-        noisy_image_in_e = xp.random.poisson(image_in_e)
+        noisy_image_in_counts = xp.random.poisson(image_in_counts)
+        
+        noisy_image_in_e = self.gain * noisy_image_in_counts
 
         # Compute dark current
         dark = dark_current_rate * exp_time * xp.ones_like(image)

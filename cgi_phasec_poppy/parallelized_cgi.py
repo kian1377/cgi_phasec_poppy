@@ -120,14 +120,6 @@ class ParallelizedCGI():
         ims = ray.get(pending_ims)
         ims = xp.array(ims)
         
-#         if self.EMCCD is not None and self.exp_time is not None:
-#             im = xp.array(self.EMCCD.sim_sub_frame(ensure_np_array(im), self.exp_time.to_value(u.s)))
-        
-#         if self.use_noise:
-#             im = self.add_noise(ims)
-#         else:
-#             im = xp.sum(ims, axis=0)/self.Na # average each of the images
-        
         if self.use_noise:
             im = xp.sum(ims, axis=0)
             im = self.add_noise(im)
@@ -155,11 +147,12 @@ class ParallelizedCGI():
             exp_time = self.exp_time.to_value(u.second)
             dark_current_rate = self.dark_current_rate.to_value(u.electron/u.pix/u.s)
             read_noise_std = self.read_noise.to_value(u.electron/u.pix) # per frame but this code only supports 1 frame
-            
-        image_in_e = self.gain * image * exp_time
         
+        image_in_counts = image * exp_time
         # Add photon shot noise
-        noisy_image_in_e = xp.random.poisson(image_in_e)
+        noisy_image_in_counts = xp.random.poisson(image_in_counts)
+        
+        noisy_image_in_e = self.gain * noisy_image_in_counts
 
         # Compute dark current
         dark = dark_current_rate * exp_time * xp.ones_like(image)
