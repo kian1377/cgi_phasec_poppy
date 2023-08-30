@@ -1,10 +1,9 @@
 from . import cgi, cgi_dev, proper_cgi, parallelized_cgi, math_module
 
 from .cgi import CGI
-from .cgi_dev import CGIDEV
 from .proper_cgi import PROPERCGI
 from .parallelized_cgi import ParallelizedCGI
-from .import hlc, hlc_dev
+from .import hlc
 from .source_flux import SOURCE
 
 from .math_module import xp, _scipy, ensure_np_array, pad_or_crop
