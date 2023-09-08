@@ -49,8 +49,11 @@ class CGI():
             self.wavelength_c = 730e-9*u.m
             self.npix = 1000
             self.oversample = 2048/1000
-        elif self.cgi_mode=='spc-wide':
-            self.wavelength_c = 825e-9*u.m
+        elif self.cgi_mode=='spc-wide' or cgi_mode=='spc-wide_band4' or cgi_mode=='spc-wide_band1':
+            if 'band1' in cgi_mode:
+                self.wavelength_c = 575e-9*u.m
+            else:
+                self.wavelength_c = 825e-9*u.m
             self.npix = 1000
             self.oversample = 2048/1000
             
@@ -182,7 +185,7 @@ class CGI():
             self.fieldstop = poppy.ScalarTransmission(planetype=PlaneType.intermediate, name='Field Stop Plane (No Optic)')
             self.use_fieldstop = False
             
-        elif self.cgi_mode=='spc-wide':
+        elif 'spc-wide' in self.cgi_mode:
             self.optics_dir = cgi_phasec_poppy.data_dir/'spc-wide'            
             self.PUPIL = poppy.FITSOpticalElement('Roman Pupil', 
                                                   transmission=str(self.optics_dir/'pupil_SPC-20200610_1000.fits'),
@@ -191,8 +194,14 @@ class CGI():
                                                 str(self.optics_dir/'SPM_SPC-20200610_1000_rounded9_gray_rotated.fits'),
                                                 planetype=PlaneType.pupil)
             if self.use_fpm: 
+                fpm_sampling_lamD = 0.1 * self.wavelength_c / self.wavelength
+                fpm_sampling_arcsec = fpm_sampling_lamD * self.as_per_lamD/u.pix
+                print(fpm_sampling_lamD, fpm_sampling_arcsec)
                 self.FPM = poppy.FixedSamplingImagePlaneElement('FPM', 
-                                                                str(self.optics_dir/'FPM_SPC-20200610_0.1_lamc_div_D.fits'))
+                                                                str(self.optics_dir/'FPM_SPC-20200610_0.1_lamc_div_D.fits'),
+                                                                wavelength_c=self.wavelength_c,
+                                                                pixelscale=fpm_sampling_arcsec, 
+                                                               )
             else: 
                 self.FPM = poppy.ScalarTransmission(name='FPM Plane (No Optic)', planetype=PlaneType.intermediate) 
             

@@ -59,8 +59,11 @@ class PROPERCGI():
             self.wavelength_c = 730e-9*u.m
             self.npix = 1000
             self.oversample = 2048/1000
-        elif self.cgi_mode=='spc-wide':
-            self.wavelength_c = 825e-9*u.m
+        elif cgi_mode=='spc-wide' or cgi_mode=='spc-wide_band4' or cgi_mode=='spc-wide_band1':
+            if 'band1' in cgi_mode:
+                self.wavelength_c = 575e-9*u.m
+            else:
+                self.wavelength_c = 825e-9*u.m
             self.npix = 1000
             self.oversample = 2048/1000
             
