@@ -30,7 +30,7 @@ class SOURCE():
         dist = self.distance.to_value(u.m).astype(np.float128)
         R = self.diameter.to_value(u.m).astype(np.float128)
 
-        self.solid_angle = 2*np.pi * (1 - np.sqrt(dist**2 - R**2)/dist) * u.sr
+        self.solid_angle = 2*np.pi * (1 - np.sqrt(dist**2 - R**2)/dist) * u.sr # look up solid angle for a star
         print(self.solid_angle)
         
         self.lambdas = np.linspace(400, 1000, 12001)*1e-9*u.m if lambdas is None else lambdas
