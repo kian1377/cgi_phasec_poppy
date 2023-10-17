@@ -478,8 +478,8 @@ class CGI():
             
             im = wfs[-1].intensity
 
-            # if self.use_noise:
-            #     im = self.add_noise(im)
+            if self.use_noise:
+                im = self.add_noise(im)
             
             if self.Imax_ref is not None:
                 im /= self.Imax_ref

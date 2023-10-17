@@ -164,6 +164,7 @@ class ParallelizedCGI():
         # Convert back from e- to counts and then discretize
         noisy_image = xp.round( (noisy_image_in_e + dark + read) )
         
-        
+        noisy_image[noisy_image<0] = 0
+
         return noisy_image
     
