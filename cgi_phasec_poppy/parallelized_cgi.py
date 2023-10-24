@@ -103,10 +103,6 @@ class ParallelizedCGI():
             future_psfs = self.actors[i].calc_psf.remote()
             pending_psfs.append(future_psfs)
         psfs = ray.get(pending_psfs)
-        if isinstance(psfs[0], np.ndarray):
-            xp = np
-        elif isinstance(psfs[0], cp.ndarray):
-            xp = cp
         psfs = xp.array(psfs)
         
         if not quiet: print('PSFs calculated in {:.3f}s.'.format(time.time()-start))
@@ -164,6 +160,7 @@ class ParallelizedCGI():
         # Convert back from e- to counts and then discretize
         noisy_image = xp.round( (noisy_image_in_e + dark + read) )
         
-        
+        noisy_image[noisy_image<0] = 0
+
         return noisy_image
     

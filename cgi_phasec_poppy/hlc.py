@@ -175,7 +175,7 @@ def run(HLC, return_intermediates=False):
         
     fosys1.add_optic(HLC.DM2, distance=d_dm1_dm2)
     if HLC.use_opds: fosys1.add_optic(HLC.dm2_opd)
-#     fosys1.add_optic(HLC.dm2_mask)
+    fosys1.add_optic(HLC.dm2_mask)
     
     fosys1.add_optic(oap3, distance=d_dm2_oap3)
     if HLC.use_opds: fosys1.add_optic(HLC.oap3_opd)

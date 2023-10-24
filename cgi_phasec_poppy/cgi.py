@@ -8,9 +8,10 @@ import poppy
 from poppy.poppy_core import PlaneType
 
 import cgi_phasec_poppy
-from . import hlc, hlc_dev, spc, polmap, imshows, math_module
-from .math_module import xp
-
+from . import hlc, hlc_dev, spc, polmap, math_module
+from .math_module import xp, ensure_np_array
+from . import utils
+from .imshows import *
 if poppy.accel_math._USE_CUPY:
     import cupy as cp
     math_module.update_xp(cp)
@@ -28,13 +29,18 @@ class CGI():
                  use_opds=False, 
                  dm1_ref=np.zeros((48,48)),
                  dm2_ref=np.zeros((48,48)),
+                 dm_inf_fun=None,
                  polaxis=0,
+                 det_rotation=0, 
                  source_flux=None,
                  use_noise=False,
                  exp_time=None,
                  exp_time_ref=None,
-                 gain=1,
+                 gain=None,
                  gain_ref=None,
+                 emccd=None,
+                 use_shot_noise=False, 
+                 Nframes=1,
                  Imax_ref=None,
                 ):
         
@@ -49,8 +55,11 @@ class CGI():
             self.wavelength_c = 730e-9*u.m
             self.npix = 1000
             self.oversample = 2048/1000
-        elif self.cgi_mode=='spc-wide':
-            self.wavelength_c = 825e-9*u.m
+        elif self.cgi_mode=='spc-wide' or cgi_mode=='spc-wide_band4' or cgi_mode=='spc-wide_band1':
+            if 'band1' in cgi_mode:
+                self.wavelength_c = 575e-9*u.m
+            else:
+                self.wavelength_c = 825e-9*u.m
             self.npix = 1000
             self.oversample = 2048/1000
             
@@ -78,8 +87,9 @@ class CGI():
         self.interp_order = interp_order # interpolation order for resampling wavefront at detector
         
         self.init_mode_optics()
+
+        self.dm_inf_fun = cgi_phasec_poppy.data_dir/'dm-acts'/'proper_inf_func.fits' if dm_inf_fun is None else dm_inf_fun
         self.init_dms()
-        
         self.dm1_ref = dm1_ref
         self.dm2_ref = dm2_ref
         self.set_dm1(dm1_ref)
@@ -88,16 +98,21 @@ class CGI():
         if self.use_opds: 
             self.init_opds()
         
+        self.det_rotation = det_rotation
+
         self.optics = ['pupil', 'polmap', 'primary', 'secondary', 'poma_fold', 'm3', 'm4', 'm5', 'tt_fold', 'fsm', 'oap1', 
                        'focm', 'oap2', 'dm1', 'dm2', 'oap3', 'fold3', 'oap4', 'pupilmask', 'oap5', 'fpm', 'oap6',
                        'lyotstop', 'oap7', 'fieldstop', 'oap8', 'filter', 
                        'imaging_lens_lens1', 'imaging_lens_lens2', 'fold4', 'image']
         
-        self.source_flux = source_flux
+        self.gain = gain
         self.use_noise = use_noise
+        self.source_flux = source_flux
+        self.emccd = emccd
+        self.Nframes = Nframes
+        self.use_shot_noise = use_shot_noise
         self.normalize = 'first' if source_flux is None else 'none'
         self.exp_time = exp_time
-        self.gain = gain
         self.gain_ref = gain_ref
         self.exp_time_ref = exp_time_ref
         self.Imax_ref = Imax_ref
@@ -118,6 +133,7 @@ class CGI():
         
             self.dm2_mask = poppy.FITSOpticalElement('DM2 Mask', 
                                                      transmission=str(self.optics_dir/'dm2mask.fits'),
+                                                     pixelscale=0.00014935510078279392, 
                                                      planetype=PlaneType.intermediate)
             if self.use_fpm:
                 # Find nearest available FPM wavelength that matches specified wavelength and initialize the FPM data
@@ -182,7 +198,7 @@ class CGI():
             self.fieldstop = poppy.ScalarTransmission(planetype=PlaneType.intermediate, name='Field Stop Plane (No Optic)')
             self.use_fieldstop = False
             
-        elif self.cgi_mode=='spc-wide':
+        elif 'spc-wide' in self.cgi_mode:
             self.optics_dir = cgi_phasec_poppy.data_dir/'spc-wide'            
             self.PUPIL = poppy.FITSOpticalElement('Roman Pupil', 
                                                   transmission=str(self.optics_dir/'pupil_SPC-20200610_1000.fits'),
@@ -191,8 +207,14 @@ class CGI():
                                                 str(self.optics_dir/'SPM_SPC-20200610_1000_rounded9_gray_rotated.fits'),
                                                 planetype=PlaneType.pupil)
             if self.use_fpm: 
+                fpm_sampling_lamD = 0.1 * self.wavelength_c / self.wavelength
+                fpm_sampling_arcsec = fpm_sampling_lamD * self.as_per_lamD/u.pix
+                print(fpm_sampling_lamD, fpm_sampling_arcsec)
                 self.FPM = poppy.FixedSamplingImagePlaneElement('FPM', 
-                                                                str(self.optics_dir/'FPM_SPC-20200610_0.1_lamc_div_D.fits'))
+                                                                str(self.optics_dir/'FPM_SPC-20200610_0.1_lamc_div_D.fits'),
+                                                                wavelength_c=self.wavelength_c,
+                                                                pixelscale=fpm_sampling_arcsec, 
+                                                               )
             else: 
                 self.FPM = poppy.ScalarTransmission(name='FPM Plane (No Optic)', planetype=PlaneType.intermediate) 
             
@@ -239,16 +261,19 @@ class CGI():
         else:
             self.dm_zernikes = poppy.zernike.arbitrary_basis(self.dm_mask, nterms=15, outside=0)
         
-        self.dm_dir = cgi_phasec_poppy.data_dir/'dm-acts'
-        
         self.DM1 = poppy.ContinuousDeformableMirror(dm_shape=(self.Nact,self.Nact), name='DM1', 
                                                     actuator_spacing=self.act_spacing, 
-                                                    inclination_x=0,inclination_y=9.65,
-                                                    influence_func=str(self.dm_dir/'proper_inf_func.fits'))
+                                                    inclination_x=0, inclination_y=9.65,
+                                                    influence_func=str(self.dm_inf_fun),
+                                                    include_factor_of_two=True,
+                                                    )
         self.DM2 = poppy.ContinuousDeformableMirror(dm_shape=(self.Nact,self.Nact), name='DM2', 
                                                     actuator_spacing=self.act_spacing, 
-                                                    inclination_x=0,inclination_y=9.65,
-                                                    influence_func=str(self.dm_dir/'proper_inf_func.fits'))
+                                                    inclination_x=0, inclination_y=9.65,
+                                                    influence_func=str(self.dm_inf_fun),
+                                                    # radius=self.dm_diam/2,
+                                                    include_factor_of_two=True,
+                                                    )
         
     
     def reset_dms(self):
@@ -441,33 +466,46 @@ class CGI():
         
         if not quiet: print('PSF calculated in {:.3f}s'.format(time.time()-start))
         
-        
         return psf_wf
     
     def snap(self): # returns just the intensity at the image plane
-        start = time.time()
-        
-        self.init_inwave()
-        if self.cgi_mode=='hlc':
-            wfs = hlc.run(self, return_intermediates=False)
-        else:
-            wfs = spc.run(self, return_intermediates=False)
-        
-        im = wfs[-1].intensity
+        if self.emccd is None:
+            self.init_inwave()
+            if self.cgi_mode=='hlc':
+                wfs = hlc.run(self, return_intermediates=False)
+            else:
+                wfs = spc.run(self, return_intermediates=False)
+            
+            im = wfs[-1].intensity
 
-        if self.use_noise:
-            im = self.add_noise(im)
+            if self.use_noise:
+                im = self.add_noise(im)
+            
+            if self.Imax_ref is not None:
+                im /= self.Imax_ref
+                
+            if self.exp_time is not None and self.exp_time_ref is not None:
+                im /= (self.exp_time/self.exp_time_ref).value
+                
+            if self.gain is not None and self.gain_ref is not None:
+                im /= self.gain/self.gain_ref
+                
+            return im
         
-        if self.Imax_ref is not None:
-            im /= self.Imax_ref
-            
-        if self.exp_time is not None and self.exp_time_ref is not None:
-            im /= (self.exp_time/self.exp_time_ref).value
-            
-        if self.gain is not None and self.gain_ref is not None:
-            im /= self.gain/self.gain_ref
-            
-        return im
+        elif self.emccd is not None:
+    
+            im = xp.abs(self.calc_psf())**2
+        
+            total_im = 0
+            for i in range(self.Nframes):
+                if self.source_flux is not None:
+                    if self.use_shot_noise:
+                        pass
+
+                    im = self.emccd.sim_sub_frame(ensure_np_array(im), self.exp_time)
+
+                total_im += im
+            return total_im
     
     def add_noise(self, image):
         

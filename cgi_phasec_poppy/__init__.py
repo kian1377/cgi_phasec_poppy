@@ -6,7 +6,7 @@ from .parallelized_cgi import ParallelizedCGI
 from .import hlc
 from .source_flux import SOURCE
 
-from .math_module import xp, _scipy, ensure_np_array, pad_or_crop
+from .math_module import xp, _scipy, ensure_np_array
 from .imshows import imshow1, imshow2, imshow3
 
 __version__ = '0.1.0'

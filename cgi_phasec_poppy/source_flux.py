@@ -24,17 +24,14 @@ class SOURCE():
         self.temp = temp.to(u.K)
         self.diameter = diameter.to(u.m)
         
-        th = np.arctan(self.diameter/2/self.distance)
-        print(th)
+#         self.solid_angle = np.pi * (self.diameter/2/self.distance)**2 * u.sr # from wikipedia page on solid angle approximation
+#         print(self.solid_angle)
         
-        self.solid_angle = np.pi * (self.diameter/2/self.distance)**2 * u.sr # from wikipedia page on solid angle approximation
+        dist = self.distance.to_value(u.m).astype(np.float128)
+        R = self.diameter.to_value(u.m).astype(np.float128)
+
+        self.solid_angle = 2*np.pi * (1 - np.sqrt(dist**2 - R**2)/dist) * u.sr # look up solid angle for a star
         print(self.solid_angle)
-#         self.solid_angle = th**2
-#         print(self.solid_angle)
-#         th = np.arctan(self.diameter/2/self.distance)
-#         print(th)
-#         self.solid_angle = 2*np.pi*(1-np.cos(th)) * u.sr
-#         print(self.solid_angle)
         
         self.lambdas = np.linspace(400, 1000, 12001)*1e-9*u.m if lambdas is None else lambdas
         self.del_lam = self.lambdas[1] - self.lambdas[0]
@@ -43,8 +40,11 @@ class SOURCE():
         self.spectrum = 2*h*c**2/(self.lambdas**5)/(np.exp(h*c/(k_B*self.temp*self.lambdas)) - 1)/u.sr
         self.spectrum = self.spectrum.to(u.J/u.s/u.sr/u.m**2/u.nm) * self.solid_angle
         
-        self.spectrum_ph = self.spectrum / self.energies * self.del_lam
-        self.spectrum_ph = self.spectrum_ph.to(u.ph/u.s/u.m**2)
+        self.spectrum_ph = self.spectrum / self.energies
+        self.spectrum_ph = self.spectrum_ph.to(u.ph/u.s/u.m**2/u.nm)
+        
+#         self.spectrum_ph = self.spectrum / self.energies * self.del_lam
+#         self.spectrum_ph = self.spectrum_ph.to(u.ph/u.s/u.m**2)
         
     def plot_spectrum(self):
         lam_min = np.min(self.lambdas.to_value(u.nm))
@@ -75,21 +75,21 @@ class SOURCE():
             color = (r,g,b,alpha)
             plt.axvspan(wavelengths[i]-del_waves/2, wavelengths[i]+del_waves/2, color=color)
             
-    def plot_spectrum_ph(self):
+    def plot_spectrum_ph(self, save_fig=None):
         lam_min = np.min(self.lambdas.to_value(u.nm))
         lam_max = np.max(self.lambdas.to_value(u.nm))
-        spec_min = np.min(self.spectrum_ph.to_value(u.ph/u.s/u.m**2))
-        spec_max = np.max(self.spectrum_ph.to_value(u.ph/u.s/u.m**2))
+        spec_min = np.min(self.spectrum_ph.to_value(u.ph/u.s/u.m**2/u.nm))
+        spec_max = np.max(self.spectrum_ph.to_value(u.ph/u.s/u.m**2/u.nm))
         
         wavelengths = self.wavelengths.to_value(u.nm)
         del_waves = wavelengths[1]-wavelengths[0]
         
         fig,ax = plt.subplots(1,1,dpi=125)
-        ax.plot(self.lambdas.to(u.nm), self.spectrum_ph.to(u.ph/u.s/u.m**2))
+        ax.plot(self.lambdas.to(u.nm), self.spectrum_ph.to(u.ph/u.s/u.m**2/u.nm))
         ax.set_xlim([lam_min, lam_max])
         ax.set_ylim([spec_min-0.1*spec_min, spec_max+0.1*spec_min])
         ax.set_xlabel('$\lambda$ [nm]')
-        ax.set_ylabel('$ph/s/m^2$')
+        ax.set_ylabel('$ph/s/m^2/nm$')
         ax.set_title(f'Photon Flux for {self.name}')
         
         wavelength_c = (wavelengths[-1] + wavelengths[0])/2
@@ -103,6 +103,9 @@ class SOURCE():
             alpha = 0.8
             color = (r,g,b,alpha)
             plt.axvspan(wavelengths[i]-del_waves/2, wavelengths[i]+del_waves/2, color=color)
+
+        if save_fig is not None:
+            fig.savefig('band4_blackbody_example.pdf', format='pdf', bbox_inches="tight")
         
     def calc_fluxes(self):
         Nwaves = len(self.wavelengths)
@@ -139,7 +142,8 @@ class SOURCE():
         
         lambdas = self.lambdas.to(u.nm)
         
-        spectrum_ph = (self.spectrum_ph/self.del_lam).to(u.ph/u.s/u.m**2/u.nm)
+        spectrum_ph = self.spectrum_ph.to(u.ph/u.s/u.m**2/u.nm)
+#         spectrum_ph = (self.spectrum_ph/self.del_lam).to(u.ph/u.s/u.m**2/u.nm)
         fluxes = []
         for i in range(Nwaves):
             wavelength = wavelengths[i]
