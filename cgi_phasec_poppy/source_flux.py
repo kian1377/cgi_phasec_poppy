@@ -75,7 +75,7 @@ class SOURCE():
             color = (r,g,b,alpha)
             plt.axvspan(wavelengths[i]-del_waves/2, wavelengths[i]+del_waves/2, color=color)
             
-    def plot_spectrum_ph(self):
+    def plot_spectrum_ph(self, save_fig=None):
         lam_min = np.min(self.lambdas.to_value(u.nm))
         lam_max = np.max(self.lambdas.to_value(u.nm))
         spec_min = np.min(self.spectrum_ph.to_value(u.ph/u.s/u.m**2/u.nm))
@@ -103,6 +103,9 @@ class SOURCE():
             alpha = 0.8
             color = (r,g,b,alpha)
             plt.axvspan(wavelengths[i]-del_waves/2, wavelengths[i]+del_waves/2, color=color)
+
+        if save_fig is not None:
+            fig.savefig('band4_blackbody_example.pdf', format='pdf', bbox_inches="tight")
         
     def calc_fluxes(self):
         Nwaves = len(self.wavelengths)

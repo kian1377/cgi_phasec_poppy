@@ -67,7 +67,7 @@ def imshow1(arr,
     cax = divider.append_axes("right", size="4%", pad=0.075)
     cbar = fig.colorbar(im, cax=cax)
     cbar.ax.set_ylabel(cbar_label, rotation=clabel_rot, 
-                       labelpad=0,
+                       labelpad=12,
                        )
     
     if save_fig is not None: 

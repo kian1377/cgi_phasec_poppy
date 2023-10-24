@@ -103,10 +103,6 @@ class ParallelizedCGI():
             future_psfs = self.actors[i].calc_psf.remote()
             pending_psfs.append(future_psfs)
         psfs = ray.get(pending_psfs)
-        if isinstance(psfs[0], np.ndarray):
-            xp = np
-        elif isinstance(psfs[0], cp.ndarray):
-            xp = cp
         psfs = xp.array(psfs)
         
         if not quiet: print('PSFs calculated in {:.3f}s.'.format(time.time()-start))
