@@ -8,7 +8,7 @@ import poppy
 from poppy.poppy_core import PlaneType
 
 import cgi_phasec_poppy
-from . import hlc, hlc_dev, spc, polmap, math_module
+from . import hlc, spc, polmap, math_module
 from .math_module import xp, ensure_np_array
 from . import utils
 from .imshows import *
@@ -209,7 +209,7 @@ class CGI():
             if self.use_fpm: 
                 fpm_sampling_lamD = 0.1 * self.wavelength_c / self.wavelength
                 fpm_sampling_arcsec = fpm_sampling_lamD * self.as_per_lamD/u.pix
-                print(fpm_sampling_lamD, fpm_sampling_arcsec)
+                # print(fpm_sampling_lamD, fpm_sampling_arcsec)
                 self.FPM = poppy.FixedSamplingImagePlaneElement('FPM', 
                                                                 str(self.optics_dir/'FPM_SPC-20200610_0.1_lamc_div_D.fits'),
                                                                 wavelength_c=self.wavelength_c,
