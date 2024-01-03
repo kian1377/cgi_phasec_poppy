@@ -30,11 +30,10 @@ def imshow1(arr,
             save_fig=None):
     fig,ax = plt.subplots(nrows=1, ncols=1, figsize=figsize, dpi=dpi)
     
-    if npix is not None:
-        arr = utils.pad_or_crop(arr, npix)
-
     arr = ensure_np_array(arr)
     
+    if npix is not None:
+        arr = utils.pad_or_crop(arr, npix)
     if pxscl is not None:
         if isinstance(pxscl, u.Quantity):
             pxscl = pxscl.value

@@ -38,7 +38,7 @@ class CGI():
                  exp_time_ref=None,
                  gain=None,
                  gain_ref=None,
-                 emccd=None,
+                 EMCCD=None,
                  use_shot_noise=False, 
                  Nframes=1,
                  Imax_ref=None,
@@ -108,7 +108,7 @@ class CGI():
         self.gain = gain
         self.use_noise = use_noise
         self.source_flux = source_flux
-        self.emccd = emccd
+        self.EMCCD = EMCCD
         self.Nframes = Nframes
         self.use_shot_noise = use_shot_noise
         self.normalize = 'first' if source_flux is None else 'none'
@@ -469,7 +469,7 @@ class CGI():
         return psf_wf
     
     def snap(self): # returns just the intensity at the image plane
-        if self.emccd is None:
+        if self.EMCCD is None:
             self.init_inwave()
             if self.cgi_mode=='hlc':
                 wfs = hlc.run(self, return_intermediates=False)
@@ -492,20 +492,14 @@ class CGI():
                 
             return im
         
-        elif self.emccd is not None:
-    
+        elif self.EMCCD is not None:
             im = xp.abs(self.calc_psf())**2
         
             total_im = 0
             for i in range(self.Nframes):
-                if self.source_flux is not None:
-                    if self.use_shot_noise:
-                        pass
+                total_im += self.EMCCD.sim_sub_frame(ensure_np_array(im), self.exp_time)
 
-                    im = self.emccd.sim_sub_frame(ensure_np_array(im), self.exp_time)
-
-                total_im += im
-            return total_im
+            return xp.array(total_im)/self.Nframes
     
     def add_noise(self, image):
         
