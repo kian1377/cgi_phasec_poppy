@@ -105,7 +105,7 @@ class SOURCE():
             plt.axvspan(wavelengths[i]-del_waves/2, wavelengths[i]+del_waves/2, color=color)
 
         if save_fig is not None:
-            fig.savefig('band4_blackbody_example.pdf', format='pdf', bbox_inches="tight")
+            fig.savefig(save_fig, format='pdf', bbox_inches="tight")
         
     def calc_fluxes(self):
         Nwaves = len(self.wavelengths)

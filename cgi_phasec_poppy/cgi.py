@@ -29,6 +29,10 @@ class CGI():
                  use_opds=False, 
                  dm1_ref=np.zeros((48,48)),
                  dm2_ref=np.zeros((48,48)),
+                 dm1_shift=np.array([0,0])*u.mm,
+                 dm2_shift=np.array([0,0])*u.mm,
+                 dm1_rot=0.0,
+                 dm2_rot=0.0,
                  dm_inf_fun=None,
                  polaxis=0,
                  det_rotation=0, 
@@ -69,6 +73,7 @@ class CGI():
             self.wavelength = self.wavelength_c
         else: 
             self.wavelength = wavelength
+        self.wavelengths = None
         
         self.source_offset = source_offset
         self.use_fpm = use_fpm
@@ -89,6 +94,10 @@ class CGI():
         self.init_mode_optics()
 
         self.dm_inf_fun = cgi_phasec_poppy.data_dir/'dm-acts'/'proper_inf_func.fits' if dm_inf_fun is None else dm_inf_fun
+        self.dm1_shift = dm1_shift
+        self.dm2_shift = dm2_shift
+        self.dm1_rot = dm1_rot
+        self.dm2_rot = dm2_rot
         self.init_dms()
         self.dm1_ref = dm1_ref
         self.dm2_ref = dm2_ref
@@ -266,6 +275,8 @@ class CGI():
                                                     inclination_x=0, inclination_y=9.65,
                                                     influence_func=str(self.dm_inf_fun),
                                                     include_factor_of_two=True,
+                                                    shift_x=self.dm1_shift[0], shift_y=self.dm1_shift[1],
+                                                    rotation=self.dm1_rot,
                                                     )
         self.DM2 = poppy.ContinuousDeformableMirror(dm_shape=(self.Nact,self.Nact), name='DM2', 
                                                     actuator_spacing=self.act_spacing, 
@@ -273,8 +284,9 @@ class CGI():
                                                     influence_func=str(self.dm_inf_fun),
                                                     # radius=self.dm_diam/2,
                                                     include_factor_of_two=True,
+                                                    shift_x=self.dm2_shift[0], shift_y=self.dm2_shift[1],
+                                                    rotation=self.dm2_rot,
                                                     )
-        
     
     def reset_dms(self):
         self.set_dm1(self.dm1_ref)
@@ -469,65 +481,79 @@ class CGI():
         return psf_wf
     
     def snap(self): # returns just the intensity at the image plane
-        if self.EMCCD is None:
-            self.init_inwave()
-            if self.cgi_mode=='hlc':
-                wfs = hlc.run(self, return_intermediates=False)
-            else:
-                wfs = spc.run(self, return_intermediates=False)
-            
-            im = wfs[-1].intensity
+        if self.wavelengths is None: 
+            if self.EMCCD is None:
+                self.init_inwave()
+                if self.cgi_mode=='hlc':
+                    wfs = hlc.run(self, return_intermediates=False)
+                else:
+                    wfs = spc.run(self, return_intermediates=False)
+                
+                im = wfs[-1].intensity
 
-            if self.use_noise:
-                im = self.add_noise(im)
+                if self.use_noise:
+                    im = self.add_noise(im)
+                
+                if self.Imax_ref is not None:
+                    im /= self.Imax_ref
+                    
+                if self.exp_time is not None and self.exp_time_ref is not None:
+                    im /= (self.exp_time/self.exp_time_ref).value
+                    
+                if self.gain is not None and self.gain_ref is not None:
+                    im /= self.gain/self.gain_ref
+                    
+                return im
             
+            elif self.EMCCD is not None:
+                im = xp.abs(self.calc_psf())**2
+            
+                total_im = 0
+                for i in range(self.Nframes):
+                    total_im += self.EMCCD.sim_sub_frame(ensure_np_array(im), self.exp_time)
+
+                return xp.array(total_im)/self.Nframes
+        elif self.wavelengths is not None:
+            bbim = 0.0
+            for i in range(len(self.wavelengths)):
+                self.wavelength = self.wavelengths[i]
+                self.init_inwave()
+                if self.cgi_mode=='hlc':
+                    wfs = hlc.run(self, return_intermediates=False)
+                else:
+                    wfs = spc.run(self, return_intermediates=False)
+
+                bbim += wfs[-1].intensity
+
             if self.Imax_ref is not None:
-                im /= self.Imax_ref
-                
-            if self.exp_time is not None and self.exp_time_ref is not None:
-                im /= (self.exp_time/self.exp_time_ref).value
-                
-            if self.gain is not None and self.gain_ref is not None:
-                im /= self.gain/self.gain_ref
-                
-            return im
-        
-        elif self.EMCCD is not None:
-            im = xp.abs(self.calc_psf())**2
-        
-            total_im = 0
-            for i in range(self.Nframes):
-                total_im += self.EMCCD.sim_sub_frame(ensure_np_array(im), self.exp_time)
+                bbim /= self.Imax_ref
+            
+            return bbim
 
-            return xp.array(total_im)/self.Nframes
-    
-    def add_noise(self, image):
-        
-        if self.exp_time is None or self.dark_current_rate is None or self.read_noise is None:
-            raise Exception('Must provide noise statistic values in order to add noise to an image.')
-        else:
-            exp_time = self.exp_time.to_value(u.second)
-            dark_current_rate = self.dark_current_rate.to_value(u.electron/u.pix/u.s)
-            read_noise_std = self.read_noise.to_value(u.electron/u.pix) # per frame but this code only supports 1 frame
-        
-        image_in_counts = image * exp_time
-        # Add photon shot noise
-        noisy_image_in_counts = xp.random.poisson(image_in_counts)
-        
-        noisy_image_in_e = self.gain * noisy_image_in_counts
 
-        # Compute dark current
-        dark = dark_current_rate * exp_time * xp.ones_like(image)
-        dark = xp.random.poisson(dark)
+    # def snap_bb(self, wavelengths):
+    #     bbim = 0.0
+    #     for i in range(len(wavelengths)):
+    #         self.wavelength = wavelengths[i]
+    #         self.init_inwave()
+    #         if self.cgi_mode=='hlc':
+    #             wfs = hlc.run(self, return_intermediates=False)
+    #         else:
+    #             wfs = spc.run(self, return_intermediates=False)
 
-        # Compute Gaussian read noise
-        read = read_noise_std * xp.random.randn(image.shape[0], image.shape[1])
+    #         bbim += wfs[-1].intensity
 
-        # Convert back from e- to counts and then discretize
-        noisy_image = xp.round( (noisy_image_in_e + dark + read) )
+    #     if self.Imax_ref is not None:
+    #         bbim /= self.Imax_ref
         
+    #     return bbim
         
-        return noisy_image
+
+
+
+
+
+
     
 
 

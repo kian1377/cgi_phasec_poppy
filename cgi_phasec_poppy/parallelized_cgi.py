@@ -28,6 +28,8 @@ class ParallelizedCGI():
                  em_gain_ref=None,
                  dark_frame=False,
                  Imax_ref=1,
+                 exp_times_list=None, 
+                 Nframes_list=None,
                 ):
         
         self.Na = len(actors) # total number of actors given
@@ -60,11 +62,16 @@ class ParallelizedCGI():
 
         self.EMCCD = EMCCD
         self.dark_frame = dark_frame
+        self.subtract_bias = False
+
+        self.exp_times_list = exp_times_list
+        self.gain_list = None
+        self.Nframes_list = Nframes_list
+
     
     def set_actor_attr(self, attr, val):
         for i in range(self.Na):
             self.actors[i].setattr.remote(attr,val)
-            
     
     def reset_dms(self):
         for i in range(self.Na):
@@ -118,21 +125,29 @@ class ParallelizedCGI():
         if not quiet: print('PSFs calculated in {:.3f}s.'.format(time.time()-start))
         return psfs
     
-    def snap(self, quiet=True):
+    def calc_images(self, quiet=True):
+        if not quiet: print('Computing each monochromatic image.')
         pending_ims = []
         for i in range(self.Na):
             future_ims = self.actors[i].snap.remote()
             pending_ims.append(future_ims)
         ims = ray.get(pending_ims)
-        ims = xp.array(ims)
+        return xp.array(ims)
+
+    def add_photon_noise(self, flux_im, exp_time): # flux_im in units of ph/s/pix
+        photon_counts_im = flux_im*exp_time
+        noisy_im = xp.random.poisson(photon_counts_im)
+        noisy_flux_im = noisy_im.astype(xp.float64)/exp_time
+        return noisy_flux_im
+
+    def snap(self, quiet=True):
+        ims = self.calc_images(quiet=quiet)
         
         if ray.get(self.actors[0].getattr.remote('source_flux')) is not None:
             bbim = xp.sum(ims, axis=0)
             if self.use_photon_noise and self.EMCCD is None:
                 if not quiet: print('Using photon noise')
-                bbim *= self.exp_time
-                bbim = xp.random.poisson(bbim)
-                bbim = bbim.astype(xp.float64)/self.exp_time
+                bbim = self.add_photon_noise(bbim, self.exp_time)
         else:
             bbim = xp.sum(ims, axis=0)/self.Na
         
@@ -167,73 +182,114 @@ class ParallelizedCGI():
             return total_im
         else:
             return bbim/self.Imax_ref
+
+    def snap_many(self, quiet=True, plot=False, sat_thresh=100):
+        if self.EMCCD is None:
+            raise ValueError('ERROR: must have EMCCD object to use this functionality.')
+        if self.exp_times_list is None:
+            raise ValueError('ERROR: must specify a list of exposure times to stack frames with variable exposures.')
+        if self.gain_list is None:
+            self.gain_list = [self.EMCCD.em_gain]*len(self.exp_times_list)
+
+        # do_normalization = copy.copy(self.normalize) 
+        # self.normalize = False
+
+        mono_flux_ims = self.calc_images(quiet=quiet)
+        bbim = xp.sum(mono_flux_ims, axis=0) # assuimng source flux pre-implemented
+        if plot: 
+            imshows.imshow1(bbim, 'Broadband Image in units of flux', lognorm=True)
+
+        ims = []
+        im_masks = []
+        for i in range(len(self.exp_times_list)):
+            if not quiet: print(f'Generating all frames based on computed flux for exposure time {i+1:d}/{len(self.exp_times_list):d}')
+            self.exp_time = copy.copy(self.exp_times_list[i])
+            self.EMCCD.em_gain = self.gain_list[i]
+            if self.Nframes_list is not None:
+                self.Nframes = self.Nframes_list[i]
+
+            averaged_frame = 0.0
+            for j in range(self.Nframes):
+                noisy_bbim = self.add_photon_noise(bbim, self.exp_time)
+                emccd_frame = self.EMCCD.sim_sub_frame(ensure_np_array(noisy_bbim), self.exp_time)
+                if plot: 
+                    imshows.imshow2(noisy_bbim, emccd_frame,
+                                    'Individual frame with\nphoton noise', 
+                                    'Individual EMCCD frame',
+                                    lognorm=True)
+                averaged_frame += emccd_frame
+            averaged_frame = xp.array(averaged_frame)/self.Nframes
+            pixel_sat_mask = averaged_frame>2**self.EMCCD.nbits - sat_thresh
+            if self.subtract_bias:
+                averaged_frame -= self.EMCCD.bias
+            if plot:
+                imshows.imshow2(averaged_frame, pixel_sat_mask, 
+                                f'Averaged EMCCD Frame:\nExposure Time = {self.exp_times_list[i]}s\nGain = {self.EMCCD.em_gain:.1f}\nN-frames = {self.Nframes:d}',
+                                'Pixel Saturation Mask', 
+                                lognorm1=True)
+            ims.append(copy.copy(averaged_frame))
+            im_masks.append(copy.copy(pixel_sat_mask))
+
+        total_flux = 0.0
+        pixel_weights = 0.0
+        for i in range(len(self.exp_times_list)):
+            flux_im = copy.copy(ims[i])
+            flux_im[im_masks[i]] = 0
+            pixel_weights += ~im_masks[i]
+            flux_im /= self.exp_times_list[i]
+            flux_im /= self.gain_list[i]
+
+            if plot: 
+                imshows.imshow2(flux_im, pixel_weights, 
+                                f'Masked Flux Image: \nExposure time: {self.exp_times_list[i]:.2e}s', 
+                                lognorm1=True)
+            total_flux += flux_im
+            
+        total_flux_im = total_flux/pixel_weights
+
+        return total_flux_im/self.Imax_ref
+    
+        # if self.Imax_ref is not None and self.em_gain_ref is not None: # normalize by EM gain
+        #     self.norm_factor = 1/self.Imax_ref * self.em_gain_ref/self.EMCCD.em_gain
+        # else:
+        #     self.norm_factor = 1
+
+        # # if do_normalization:
+        # #     self.normalize = True
+        # return total_flux_im*self.norm_factor
     
     def snap_dark(self):
         dark_frame = 0.0
         for i in range(self.Nframes):
             dark_frame += self.EMCCD.sim_sub_frame(np.zeros((self.npsf, self.npsf)), self.exp_time)
         return xp.array(dark_frame)/self.Nframes
-
-    def snap_many(self, exp_times, plot=False):
-        do_normalization = copy.copy(self.normalize) 
-        self.normalize = False
-
-        ims = []
-        darks = []
-        im_masks = []
-        for i in range(len(exp_times)):
-            self.exp_time = exp_times[i]
-            # darks.append(mode.snap_dark())
-            im = self.snap()
-            ims.append(im)
-            im_masks.append((im>2**self.EMCCD.nbits -100))
-
-        total_flux = 0.0
-        pixel_weights = 0.0
-        for i in range(len(exp_times)):
-            flux_im = copy.copy(ims[i])
-            flux_im[im_masks[i]] = 0
-            pixel_weights += ~im_masks[i]
-            if plot: imshows.imshow2(flux_im, pixel_weights, lognorm1=True)
-            flux_im /= exp_times[i]
-
-            if do_normalization:
-                self.norm_factor = 1/self.Imax_ref * self.em_gain_ref/self.EMCCD.em_gain
-                flux_im *= self.norm_factor
-
-            total_flux += flux_im
-        total_im = total_flux/pixel_weights
-
-        if do_normalization:
-            self.normalize = True
-        return total_im
-
-    def add_noise(self, image):
+    
+    # def add_noise(self, image):
         
-        if self.exp_time is None or self.dark_current_rate is None or self.read_noise is None:
-            raise Exception('Must provide noise statistic values in order to add noise to an image.')
-        else:
-            exp_time = self.exp_time.to_value(u.second)
-            dark_current_rate = self.dark_current_rate.to_value(u.electron/u.pix/u.s)
-            read_noise_std = self.read_noise.to_value(u.electron/u.pix) # per frame but this code only supports 1 frame
+    #     if self.exp_time is None or self.dark_current_rate is None or self.read_noise is None:
+    #         raise Exception('Must provide noise statistic values in order to add noise to an image.')
+    #     else:
+    #         exp_time = self.exp_time.to_value(u.second)
+    #         dark_current_rate = self.dark_current_rate.to_value(u.electron/u.pix/u.s)
+    #         read_noise_std = self.read_noise.to_value(u.electron/u.pix) # per frame but this code only supports 1 frame
         
-        image_in_counts = image * exp_time
-        # Add photon shot noise
-        noisy_image_in_counts = xp.random.poisson(image_in_counts)
+    #     image_in_counts = image * exp_time
+    #     # Add photon shot noise
+    #     noisy_image_in_counts = xp.random.poisson(image_in_counts)
         
-        noisy_image_in_e = self.gain * noisy_image_in_counts
+    #     noisy_image_in_e = self.gain * noisy_image_in_counts
 
-        # Compute dark current
-        dark = dark_current_rate * exp_time * xp.ones_like(image)
-        dark = xp.random.poisson(dark)
+    #     # Compute dark current
+    #     dark = dark_current_rate * exp_time * xp.ones_like(image)
+    #     dark = xp.random.poisson(dark)
 
-        # Compute Gaussian read noise
-        read = read_noise_std * xp.random.randn(image.shape[0], image.shape[1])
+    #     # Compute Gaussian read noise
+    #     read = read_noise_std * xp.random.randn(image.shape[0], image.shape[1])
 
-        # Convert back from e- to counts and then discretize
-        noisy_image = xp.round( (noisy_image_in_e + dark + read) )
+    #     # Convert back from e- to counts and then discretize
+    #     noisy_image = xp.round( (noisy_image_in_e + dark + read) )
         
-        # noisy_image[noisy_image<0] = 0
+    #     # noisy_image[noisy_image<0] = 0
 
-        return noisy_image
+    #     return noisy_image
     

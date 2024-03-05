@@ -10,6 +10,7 @@ except ImportError:
     print('PROPER CGI model not installed and is unavailable')
 
 import cgi_phasec_poppy
+from . import polmap
 from . import imshows, math_module
 from .math_module import xp
 
@@ -74,7 +75,6 @@ class PROPERCGI():
         else: 
             self.wavelength = wavelength
         
-        
         self.norm = norm
         self.source_offset = source_offset
         self.use_fpm = use_fpm
@@ -101,10 +101,20 @@ class PROPERCGI():
         x,y = np.meshgrid(xx,xx)
         r = np.sqrt(x**2 + y**2)
         self.dm_mask[r>47] = 0
+
+        self.Nacts = np.sum(self.dm_mask)
         
-        
+        if self.polaxis!=0:
+            polfile = cgi_phasec_poppy.data_dir/'pol'/'phasec_pol'
+            polmap_amp, polmap_opd = polmap.polmap( str(polfile), 
+                                                   self.wavelength, 
+                                                   self.npix, int(self.oversample*self.npix), self.polaxis )
+            self.POLMAP = polmap_amp * np.exp(1j*2*np.pi/self.wavelength.to_value(u.m)*polmap_opd)
+            
         self.set_dm1(dm1_ref)
         self.set_dm2(dm2_ref)
+
+        self.source_flux = None
         
     def getattr(self, attr):
         return getattr(self, attr)
@@ -138,17 +148,6 @@ class PROPERCGI():
     def get_dm2(self):
         return self.DM2
     
-#     def show_dms(self):
-#         wf = poppy.FresnelWavefront(beam_radius=self.dm_diam/2, npix=self.npix, oversample=1)
-#         misc.imshow2(self.get_dm1(), self.get_dm2(), 'DM1 Commands', 'DM2 Commands')
-#         misc.imshow2(self.DM1.get_opd(wf), self.DM2.get_opd(wf), 
-#                      'DM1 OPD', 'DM2 OPD', pxscl=self.dm_diam/self.npix)
-    
-#     def show_polmap(self):
-#         misc.imshow2(self.POLMAP.amplitude, self.POLMAP.opd,
-#                      'POLMAP: Amplitude', 'POLMAP: OPD', 
-#                      npix=self.npix, pxscl=self.POLMAP.pixelscale)
-    
     def calc_psf(self, quiet=True): # returns just the poppy.FresnelWavefront object of the image plane
         start = time.time()
         if not quiet: print('Propagating wavelength {:.3f}.'.format(self.wavelength.to(u.nm)))
@@ -178,7 +177,7 @@ class PROPERCGI():
         wf = pad_or_crop(wf, self.npsf)
         
         if not quiet: print('PSF calculated in {:.3f}s'.format(time.time()-start))
-            
+        
         return wf
     
     def snap(self): # returns just the intensity at the image plane
