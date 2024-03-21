@@ -3,6 +3,7 @@ from scipy.interpolate import interp1d
 from astropy.io import fits
 import astropy.units as u
 import time
+import copy
 
 import poppy
 from poppy.poppy_core import PlaneType
@@ -438,11 +439,12 @@ class CGI():
         if self.source_flux is not None:
             # scale input wavefront amplitude by the photon flux of source
             flux_per_pixel = self.source_flux * (inwave.pixelscale*u.pix)**2
-            inwave.wavefront *= np.sqrt((flux_per_pixel).value)
+            inwave.wavefront *= np.sqrt((flux_per_pixel).to_value(u.ph/u.s))
             self.normalize = 'none'
         
         self.inwave = inwave
-        
+        self.input_wavefront = copy.copy(inwave)
+
     def show_polmap(self):
         misc.imshow2(self.POLMAP.amplitude, self.POLMAP.opd,
                      'POLMAP: Amplitude', 'POLMAP: OPD', 
