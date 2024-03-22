@@ -38,6 +38,7 @@ class CGI():
                  polaxis=0,
                  det_rotation=0, 
                  source_flux=None,
+                 R_throughput=None,
                  use_noise=False,
                  exp_time=None,
                  exp_time_ref=None,
@@ -438,7 +439,7 @@ class CGI():
             
         if self.source_flux is not None:
             # scale input wavefront amplitude by the photon flux of source
-            flux_per_pixel = self.source_flux * (inwave.pixelscale*u.pix)**2
+            flux_per_pixel = self.source_flux * (inwave.pixelscale*u.pix)**2 
             inwave.wavefront *= np.sqrt((flux_per_pixel).to_value(u.ph/u.s))
             self.normalize = 'none'
         
@@ -483,74 +484,18 @@ class CGI():
         return psf_wf
     
     def snap(self): # returns just the intensity at the image plane
-        if self.wavelengths is None: 
-            if self.EMCCD is None:
-                self.init_inwave()
-                if self.cgi_mode=='hlc':
-                    wfs = hlc.run(self, return_intermediates=False)
-                else:
-                    wfs = spc.run(self, return_intermediates=False)
-                
-                im = wfs[-1].intensity
-
-                if self.use_noise:
-                    im = self.add_noise(im)
-                
-                if self.Imax_ref is not None:
-                    im /= self.Imax_ref
-                    
-                if self.exp_time is not None and self.exp_time_ref is not None:
-                    im /= (self.exp_time/self.exp_time_ref).value
-                    
-                if self.gain is not None and self.gain_ref is not None:
-                    im /= self.gain/self.gain_ref
-                    
-                return im
-            
-            elif self.EMCCD is not None:
-                im = xp.abs(self.calc_psf())**2
-            
-                total_im = 0
-                for i in range(self.Nframes):
-                    total_im += self.EMCCD.sim_sub_frame(ensure_np_array(im), self.exp_time)
-
-                return xp.array(total_im)/self.Nframes
-        elif self.wavelengths is not None:
-            bbim = 0.0
-            for i in range(len(self.wavelengths)):
-                self.wavelength = self.wavelengths[i]
-                self.init_inwave()
-                if self.cgi_mode=='hlc':
-                    wfs = hlc.run(self, return_intermediates=False)
-                else:
-                    wfs = spc.run(self, return_intermediates=False)
-
-                bbim += wfs[-1].intensity
-
-            if self.Imax_ref is not None:
-                bbim /= self.Imax_ref
-            
-            return bbim
-
-
-    # def snap_bb(self, wavelengths):
-    #     bbim = 0.0
-    #     for i in range(len(wavelengths)):
-    #         self.wavelength = wavelengths[i]
-    #         self.init_inwave()
-    #         if self.cgi_mode=='hlc':
-    #             wfs = hlc.run(self, return_intermediates=False)
-    #         else:
-    #             wfs = spc.run(self, return_intermediates=False)
-
-    #         bbim += wfs[-1].intensity
-
-    #     if self.Imax_ref is not None:
-    #         bbim /= self.Imax_ref
+        self.init_inwave()
+        if self.cgi_mode=='hlc':
+            wfs = hlc.run(self, return_intermediates=False)
+        else:
+            wfs = spc.run(self, return_intermediates=False)
         
-    #     return bbim
+        im = wfs[-1].intensity
         
-
+        if self.Imax_ref is not None:
+            im /= self.Imax_ref
+            
+        return im
 
 
 

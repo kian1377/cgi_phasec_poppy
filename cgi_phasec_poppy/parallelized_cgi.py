@@ -22,6 +22,7 @@ class ParallelizedCGI():
                  use_photon_noise=False,
                  exp_time=None,
                  gain=1,
+                 R_throughput=1, 
                  EMCCD=None,
                  normalize=False,
                  exp_time_ref=None,
@@ -41,7 +42,8 @@ class ParallelizedCGI():
         self.set_dm2(dm2_ref)
         
         self.exp_time = exp_time
-        self.gain = gain
+
+        self.R_throughput = R_throughput
         
         self.psf_pixelscale = ray.get(actors[0].getattr.remote('psf_pixelscale'))
         self.psf_pixelscale_lamD = ray.get(actors[0].getattr.remote('psf_pixelscale_lamD'))
@@ -134,12 +136,6 @@ class ParallelizedCGI():
         ims = ray.get(pending_ims)
         return xp.array(ims)
 
-    def add_photon_noise(self, flux_im, exp_time): # flux_im in units of ph/s/pix
-        photon_counts_im = flux_im*exp_time
-        noisy_im = xp.random.poisson(photon_counts_im)
-        noisy_flux_im = noisy_im.astype(xp.float64)/exp_time
-        return noisy_flux_im
-
     def snap(self, quiet=True):
         ims = self.calc_images(quiet=quiet)
         bbim = xp.sum(ims, axis=0)
@@ -174,7 +170,7 @@ class ParallelizedCGI():
             self.gain_list = [self.EMCCD.em_gain]*len(self.exp_times_list)
 
         mono_flux_ims = self.calc_images(quiet=quiet)
-        bb_flux_im = xp.sum(mono_flux_ims, axis=0) # assuimng source flux pre-implemented
+        bb_flux_im = self.R_throughput * xp.sum(mono_flux_ims, axis=0) # assuimng source flux pre-implemented
         if plot: imshows.imshow1(bb_flux_im, 'Total image flux [ph/s/pix]', lognorm=True)
 
         # ims = []
